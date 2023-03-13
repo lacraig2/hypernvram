@@ -57,167 +57,18 @@ static void firmae_load_env()
     is_load_env = 1;
 }
 
-static int sem_get() {
-    int key, semid = 0;
-    unsigned int timeout = 0;
-    struct semid_ds seminfo;
-    union semun {
-        int val;
-        struct semid_ds *buf;
-        unsigned short *array;
-        struct seminfo *__buf;
-    } semun;
-    struct sembuf sembuf = {
-        .sem_num = 0,
-        .sem_op = 1,
-        .sem_flg = 0,
-    };
-
-    // Generate key for semaphore based on the mount point
-    if (!ftok || (key = ftok(MOUNT_POINT, IPC_KEY)) == -1) {
-        //PRINT_MSG("%s ftok %d, key %d\n", "Unable to get semaphore key! Utilize altenative key.. by SR.");
-        key = 246812345; // Hardcoded random value
-    }
-
-    //PRINT_MSG("Key: %x\n", key);
-
-    // Get the semaphore using the key
-    if ((semid = semget(key, 1, IPC_CREAT | IPC_EXCL | 0666)) >= 0) {
-        semun.val = 1;
-        // Unlock the semaphore and set the sem_otime field
-        if (semop(semid, &sembuf, 1) == -1) {
-            PRINT_MSG("%s\n", "Unable to initialize semaphore!");
-            // Clean up semaphore
-            semctl(semid, 0, IPC_RMID);
-            semid = -1;
-        }
-    }
-    else if (errno == EEXIST) {
-        // Get the semaphore in non-exclusive mode
-        if ((semid = semget(key, 1, 0)) < 0) {
-            PRINT_MSG("%s\n", "Unable to get semaphore non-exclusively!");
-            return semid;
-        }
-
-        semun.buf = &seminfo;
-        // Wait for the semaphore to be initialized
-        while (timeout++ < IPC_TIMEOUT) {
-            semctl(semid, 0, IPC_STAT, semun);
-
-            if (semun.buf && semun.buf->sem_otime != 0) {
-                break;
-            }
-        }
-        if  (timeout >= IPC_TIMEOUT)
-            PRINT_MSG("Waiting for semaphore timeout (Key: %x, Semaphore: %x)...\n", key, semid);
-    }
-
-    return (timeout < IPC_TIMEOUT) ? semid : -1;
-}
-
-static void sem_lock() {
-    int semid;
-    struct sembuf sembuf = {
-        .sem_num = 0,
-        .sem_op = -1,
-        .sem_flg = SEM_UNDO,
-    };
-    struct mntent entry, *ent;
-    FILE *mnt = NULL;
-
-    // If not initialized, check for existing mount before triggering NVRAM init
-    if (!init) {
-        if (setmntent) {
-            if ((mnt = setmntent("/proc/mounts", "r"))) {
-              while ((ent = getmntent_r(mnt, &entry, temp, BUFFER_SIZE))) {
-                  if (!strncmp(ent->mnt_dir, MOUNT_POINT, sizeof(MOUNT_POINT) - 2)) {
-                      init = 1;
-                      PRINT_MSG("%s\n", "Already initialized!");
-                      endmntent(mnt);
-                      goto cont;
-                  }
-              }
-              endmntent(mnt);
-            }
-        } else {
-          // setmntent is unavailable, when we mount we'll touch /mounted in the directory as a flag
-          FILE *f;
-          if ((f = fopen(MOUNT_POINT "/mounted", "rb")) != NULL) {
-            fclose(f);
-            // We were able to open MOUNT_POINT/mounted  - we probably mounted this previously, bail
-            goto cont;
-          }
-          PRINT_MSG("%s\n", "setmntent is unavailable and no MOUNT_POINT/mounted - do nvram init");
-        }
-
-
-        PRINT_MSG("%s\n", "Triggering NVRAM initialization!");
-        nvram_init();
-    }
-
-cont:
-    // Must get sempahore after NVRAM initialization, mounting will change ID
-    if ((semid = sem_get()) == -1) {
-        PRINT_MSG("%s\n", "Unable to get semaphore!");
-        return;
-    }
-
-//    PRINT_MSG("%s\n", "Locking semaphore...");
-
-    if (semop(semid, &sembuf, 1) == -1) {
-        PRINT_MSG("%s\n", "Unable to lock semaphore!");
-    }
-
-    return;
-}
-
-static void sem_unlock() {
-    int semid;
-    struct sembuf sembuf = {
-        .sem_num = 0,
-        .sem_op = 1,
-        .sem_flg = SEM_UNDO,
-    };
-
-    if ((semid = sem_get(NULL)) == -1) {
-        PRINT_MSG("%s\n", "Unable to get semaphore!");
-        return;
-    }
-
-//    PRINT_MSG("%s\n", "Unlocking semaphore...");
-
-    if (semop(semid, &sembuf, 1) == -1) {
-        PRINT_MSG("%s\n", "Unable to unlock semaphore!");
-    }
-
-    return;
-}
 
 int nvram_init(void) {
     FILE *f;
 
     PRINT_MSG("%s\n", "Initializing NVRAM...");
+    hc("NVRAM INIT");
 
     if (init) {
         PRINT_MSG("%s\n", "Early termination!");
         return E_SUCCESS;
     }
     init = 1;
-
-    sem_lock();
-
-    if (mount("tmpfs", MOUNT_POINT, "tmpfs", MS_NOEXEC | MS_NOSUID | MS_SYNCHRONOUS, "") == -1) {
-        sem_unlock();
-        PRINT_MSG("Unable to mount tmpfs on mount point %s!\n", MOUNT_POINT);
-        return E_FAILURE;
-    }
-
-    // Touch /mounted so we know it exists if we don't have semset
-    if (!setmntent) {
-      if ((f = fopen(MOUNT_POINT "/mounted", "w+")) == NULL) {
-          PRINT_MSG("%s\n", "Unable open mount_point/mounted");
-      }
-    }
 
     // Checked by certain Ralink routers
     if ((f = fopen("/var/run/nvramd.pid", "w+")) == NULL) {
@@ -226,9 +77,6 @@ int nvram_init(void) {
     else {
         fclose(f);
     }
-
-    sem_unlock();
-
     return nvram_set_default();
 }
 
@@ -244,81 +92,23 @@ int nvram_reset(void) {
 }
 
 int nvram_clear(void) {
-    char path[PATH_MAX] = MOUNT_POINT;
-    struct dirent *entry;
-    int ret = E_SUCCESS;
-    DIR *dir;
-
     PRINT_MSG("%s\n", "Clearing NVRAM...");
-
-    sem_lock();
-
-    if (!(dir = opendir(MOUNT_POINT))) {
-        sem_unlock();
-        PRINT_MSG("Unable to open directory %s!\n", MOUNT_POINT);
-        return E_FAILURE;
-    }
-
-    while ((entry = readdir(dir))) {
-        if (!strncmp(entry->d_name, ".", 1) || !strcmp(entry->d_name, "..")) {
-            PRINT_MSG("Skipping %s\n", entry->d_name);
-            continue;
-        }
-
-        strncpy(path + strlen(MOUNT_POINT), entry->d_name, ARRAY_SIZE(path) - ARRAY_SIZE(MOUNT_POINT) - 1);
-        path[PATH_MAX - 1] = '\0';
-
-        PRINT_MSG("%s\n", path);
-
-        if (unlink(path) == -1 && errno != ENOENT) {
-            PRINT_MSG("Unable to unlink %s!\n", path);
-            ret = E_FAILURE;
-        }
-    }
-
-    closedir(dir);
-    sem_unlock();
-    return ret;
+    hc("NVRAM clear");
+    return E_SUCCESS;
 }
 
 int nvram_close(void) {
     PRINT_MSG("%s\n", "Closing NVRAM...");
+    hc("NVRAM_CLOSE");
     return E_SUCCESS;
 }
 
 int nvram_list_add(const char *key, const char *val) {
-    char *pos;
-
-    PRINT_MSG("%s = %s + %s\n", val, temp, key);
-
-    if (nvram_get_buf(key, temp, BUFFER_SIZE) != E_SUCCESS) {
-        return nvram_set(key, val);
-    }
-
-    if (!key || !val) {
-        return E_FAILURE;
-    }
-
-    if (strlen(temp) + 1 + strlen(val) + 1 > BUFFER_SIZE) {
-        return E_FAILURE;
-    }
-
-    // This will overwrite the temp buffer, but it is OK
-    if (nvram_list_exist(key, val, LIST_MAGIC) != NULL) {
-        return E_SUCCESS;
-    }
-
-    // Replace terminating NULL of list with LIST_SEP
-    pos = temp + strlen(temp);
-    if (pos != temp) {
-        *pos++ = LIST_SEP[0];
-    }
-
-    if (strcpy(pos, val) != pos) {
-        return E_FAILURE;
-    }
-
-    return nvram_set(key, temp);
+    char buffer[PATH_MAX];
+    snprintf(buffer, sizeof(buffer)-1, "NVRAM_LIST_ADD (%s) (%s)", key, val);
+    PRINT_MSG("%s\n", buffer);
+    hc(buffer);
+    return *(int*)buffer;
 }
 
 char *nvram_list_exist(const char *key, const char *val, int magic) {
@@ -420,203 +210,57 @@ int nvram_get_buf(const char *key, char *buf, size_t sz) {
     PRINT_MSG("%s\n", key);
 
     strncat(path, key, ARRAY_SIZE(path) - ARRAY_SIZE(MOUNT_POINT) - 1);
-
-    sem_lock();
-
-    if ((f = fopen(path, "rb")) == NULL) {
-        sem_unlock();
-        PRINT_MSG("Unable to open key: %s! Set default value to \"\"\n", path);
-        if (firmae_nvram)
-        {
-            //If key value is not found, make the default value to ""
-            if (!strcmp(key, "noinitrc"))
-                return E_FAILURE;
-            strcpy(buf,"");
-            return E_SUCCESS;
-        }
-        else
-            return E_FAILURE;
-    }
-    else
-    {
-        PRINT_MSG("\n\n[NVRAM] %d %s\n\n", strlen(key), key);
-    }
-
-    if (fgets(buf, sz, f) != buf) {
-        buf[0] = '\0';
-    }
-
-    fclose(f);
-    sem_unlock();
-
-    PRINT_MSG("= \"%s\"\n", buf);
-
-    return E_SUCCESS;
-}
-
-int nvram_get_int(const char *key) {
-    char path[PATH_MAX] = MOUNT_POINT;
-    FILE *f;
-    int ret;
-
+    
+    char buffer[PATH_MAX];
     if (!key) {
         PRINT_MSG("%s\n", "NULL key!");
         return E_FAILURE;
     }
-
-    PRINT_MSG("%s\n", key);
-
-    strncat(path, key, ARRAY_SIZE(path) - ARRAY_SIZE(MOUNT_POINT) - 1);
-
-    sem_lock();
-
-    if ((f = fopen(path, "rb")) == NULL) {
-        sem_unlock();
-        PRINT_MSG("Unable to open key: %s!\n", path);
+    snprintf(buffer, sizeof(buffer)-1, "NVRAM_GET_BUF (%s) (%p) (%d)", key, buf, sz);
+    if (hc(buffer) == ERROR_VAL){
+        PRINT_MSG("%s\n", "Unable to get key!")
         return E_FAILURE;
     }
+    return E_SUCCESS;
+}
 
-    if (fread(&ret, sizeof(ret), 1, f) != 1) {
-        fclose(f);
-        sem_unlock();
-        PRINT_MSG("Unable to read key: %s!\n", path);
+
+
+int nvram_get_int(const char *key) {
+    char buffer[PATH_MAX];
+    if (!key) {
+        PRINT_MSG("%s\n", "NULL key!");
         return E_FAILURE;
     }
-    fclose(f);
-    sem_unlock();
-
-    PRINT_MSG("= %d\n", ret);
-
-    return ret;
+    snprintf(buffer, sizeof(buffer)-1, "NVRAM_GET_INT (%s)", key);
+    hc(buffer);
+    PRINT_MSG("= %d\n", (int)buffer);
+    return *(int*)buffer;
 }
 
 int nvram_getall(char *buf, size_t len) {
-    char path[PATH_MAX] = MOUNT_POINT;
-    struct dirent *entry;
-    size_t pos = 0, ret;
-    DIR *dir;
-    FILE *f;
-
+    char buffer[PATH_MAX];
+    
     if (!buf || !len) {
         PRINT_MSG("%s\n", "NULL buffer or zero length!");
         return E_FAILURE;
     }
-
-    sem_lock();
-
-    if (!(dir = opendir(MOUNT_POINT))) {
-        sem_unlock();
-        PRINT_MSG("Unable to open directory %s!\n", MOUNT_POINT);
-        return E_FAILURE;
-    }
-
-    while ((entry = readdir(dir))) {
-        if (!strncmp(entry->d_name, ".", 1) || !strcmp(entry->d_name, "..")) {
-            continue;
-        }
-
-        strncpy(path + strlen(MOUNT_POINT), entry->d_name, ARRAY_SIZE(path) - ARRAY_SIZE(MOUNT_POINT) - 1);
-        path[PATH_MAX - 1] = '\0';
-
-        if ((ret = snprintf(buf + pos, len - pos, "%s=", entry->d_name)) != strlen(entry->d_name) + 1) {
-            closedir(dir);
-            sem_unlock();
-            PRINT_MSG("Unable to append key %s!\n", buf + pos);
-            return E_FAILURE;
-        }
-
-        pos += ret;
-
-        if ((f = fopen(path, "rb")) == NULL) {
-            closedir(dir);
-            sem_unlock();
-            PRINT_MSG("Unable to open key: %s!\n", path);
-            return E_FAILURE;
-        }
-
-        if (!(ret = fread(temp, sizeof(*temp), BUFFER_SIZE, f))) {
-            fclose(f);
-            closedir(dir);
-            sem_unlock();
-            PRINT_MSG("Unable to read key: %s!\n", path);
-            return E_FAILURE;
-        }
-
-        memcpy(buf + pos, temp, ret);
-        buf[pos + ret] = '\0';
-        pos += ret + 1;
-
-        fclose(f);
-    }
-
-    closedir(dir);
-    sem_unlock();
+    snprintf(buffer, sizeof(buffer)-1, "NVRAM_GETALL (%p) (%d)", buf, len);
+    hc(buffer);
     return E_SUCCESS;
 }
 
 int nvram_set(const char *key, const char *val) {
-    char path[PATH_MAX] = MOUNT_POINT;
-    FILE *f;
-
-    if (!key || !val) {
-        PRINT_MSG("%s\n", "NULL key or value!");
-        return E_FAILURE;
-    }
-
-    PRINT_MSG("%s = \"%s\"\n", key, val);
-
-    strncat(path, key, ARRAY_SIZE(path) - ARRAY_SIZE(MOUNT_POINT) - 1);
-
-    sem_lock();
-
-    if ((f = fopen(path, "wb")) == NULL) {
-        sem_unlock();
-        PRINT_MSG("Unable to open key: %s!\n", path);
-        return E_FAILURE;
-    }
-
-    if (fwrite(val, sizeof(*val), strlen(val), f) != strlen(val)) {
-        fclose(f);
-        sem_unlock();
-        PRINT_MSG("Unable to write value: %s to key: %s!\n", val, path);
-        return E_FAILURE;
-    }
-
-    fclose(f);
-    sem_unlock();
+    char buffer[PATH_MAX];
+    snprintf(buffer, sizeof(buffer)-1, "NVRAM_SET (%s) (%s)", key, val);
+    hc(buffer);
     return E_SUCCESS;
 }
 
 int nvram_set_int(const char *key, const int val) {
-    char path[PATH_MAX] = MOUNT_POINT;
-    FILE *f;
-
-    if (!key) {
-        PRINT_MSG("%s\n", "NULL key!");
-        return E_FAILURE;
-    }
-
-    PRINT_MSG("%s = %d\n", key, val);
-
-    strncat(path, key, ARRAY_SIZE(path) - ARRAY_SIZE(MOUNT_POINT) - 1);
-
-    sem_lock();
-
-    if ((f = fopen(path, "wb")) == NULL) {
-        sem_unlock();
-        PRINT_MSG("Unable to open key: %s!\n", path);
-        return E_FAILURE;
-    }
-
-    if (fwrite(&val, sizeof(val), 1, f) != 1) {
-        fclose(f);
-        sem_unlock();
-        PRINT_MSG("Unable to write value: %d to key: %s!\n", val, path);
-        return E_FAILURE;
-    }
-
-    fclose(f);
-    sem_unlock();
+    char buffer[PATH_MAX];
+    snprintf(buffer, sizeof(buffer)-1, "NVRAM_SET_INT (%s) (%d)", key, val);
+    hc(buffer);
     return E_SUCCESS;
 }
 
@@ -740,25 +384,15 @@ static int nvram_set_default_table(const char *tbl[]) {
 }
 
 int nvram_unset(const char *key) {
-    char path[PATH_MAX] = MOUNT_POINT;
-
+    char buffer[PATH_MAX];
     if (!key) {
         PRINT_MSG("%s\n", "NULL key!");
         return E_FAILURE;
     }
-
-    PRINT_MSG("%s\n", key);
-
-    strncat(path, key, ARRAY_SIZE(path) - ARRAY_SIZE(MOUNT_POINT) - 1);
-
-    sem_lock();
-    if (unlink(path) == -1 && errno != ENOENT) {
-        sem_unlock();
-        PRINT_MSG("Unable to unlink %s!\n", path);
-        return E_FAILURE;
-    }
-    sem_unlock();
-    return E_SUCCESS;
+    snprintf(buffer, sizeof(buffer)-1, "NVRAM_UNSET (%s)", key);
+    hc(buffer);
+    PRINT_MSG("= %d\n", (int)buffer);
+    return *(int*)buffer;
 }
 
 int nvram_safe_unset(const char *key) {
@@ -804,10 +438,6 @@ int nvram_invmatch(const char *key, const char *val) {
 }
 
 int nvram_commit(void) {
-    sem_lock();
-    sync();
-    sem_unlock();
-
     return E_SUCCESS;
 }
 
