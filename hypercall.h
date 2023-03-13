@@ -39,9 +39,11 @@ static inline int hc(char* s) {
     return ret;
 }
 #elif defined(__arm__)
-static inline int hc(void *s) {
-    unsigned long r0 = RECCTRL_MAGIC;
+static inline int hc(char *s) {
+    unsigned long r0 = MAGIC_VAL;
     int ret = ERROR_VAL;
+    char* action = s;
+
 
     asm __volatile__(
     "push {r0-r4} \t\n\
@@ -53,22 +55,22 @@ static inline int hc(void *s) {
      pop {r0-r4} \t\n\
     "
     : "=g"(ret) /* output operand */
-    : "g" (r0), "g" (s) /* input operands */
-    : "r0", "r1", "r2", "r3" /* clobbered registers */
+    : "g" (r0), "g" (action), "g" (s) /* input operands */
+    : "r0", "r1", "r2", "r3", "r4" /* clobbered registers */
     );
 
     return ret;
 }
 #elif defined(mips) || defined(__mips__) || defined(__mips)
 static inline int hc(void *s) {
-    unsigned long r0 = RECCTRL_MAGIC;
+    unsigned long r0 = MAGIC_VAL;
     int ret = ERROR_VAL;
 
     asm __volatile__(
     "movz $0, $0, $0\t\n"
     : "=g"(ret) /* output operand */
     : "g" (r0), "g" (s) /* input operands */
-    : "r0", "r1", "r2", "r3" /* clobbered registers */
+    : "a0", "a1", "a2", "a3" /* clobbered registers */
     );
 
     return ret;

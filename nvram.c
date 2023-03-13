@@ -18,6 +18,7 @@
 #include "alias.h"
 #include "nvram.h"
 #include "config.h"
+#include "hypercall.h"
 
 /* Generate variable declarations for external NVRAM data. */
 #define NATIVE(a, b)
@@ -191,7 +192,6 @@ char *nvram_default_get(const char *key, const char *val) {
 
 int nvram_get_buf(const char *key, char *buf, size_t sz) {
     char path[PATH_MAX] = MOUNT_POINT;
-    FILE *f;
     if (!is_load_env) firmae_load_env();
 
     if (!buf) {
@@ -216,9 +216,9 @@ int nvram_get_buf(const char *key, char *buf, size_t sz) {
         PRINT_MSG("%s\n", "NULL key!");
         return E_FAILURE;
     }
-    snprintf(buffer, sizeof(buffer)-1, "NVRAM_GET_BUF (%s) (%p) (%d)", key, buf, sz);
+    snprintf(buffer, sizeof(buffer)-1, "NVRAM_GET_BUF (%s) (%p) (%zu)", key, buf, sz);
     if (hc(buffer) == ERROR_VAL){
-        PRINT_MSG("%s\n", "Unable to get key!")
+        PRINT_MSG("%s\n", "Unable to get key!");
         return E_FAILURE;
     }
     return E_SUCCESS;
@@ -245,7 +245,7 @@ int nvram_getall(char *buf, size_t len) {
         PRINT_MSG("%s\n", "NULL buffer or zero length!");
         return E_FAILURE;
     }
-    snprintf(buffer, sizeof(buffer)-1, "NVRAM_GETALL (%p) (%d)", buf, len);
+    snprintf(buffer, sizeof(buffer)-1, "NVRAM_GETALL (%p) (%zu)", buf, len);
     hc(buffer);
     return E_SUCCESS;
 }
@@ -365,10 +365,8 @@ static int nvram_set_default_builtin(void) {
 }
 
 static int nvram_set_default_image(void) {
-    PRINT_MSG("%s\n", "Copying overrides from defaults folder!");
-    sem_lock();
-    system("/bin/cp "OVERRIDE_POINT"* "MOUNT_POINT);
-    sem_unlock();
+    // PRINT_MSG("%s\n", "Copying overrides from defaults folder!");
+    // system("/bin/cp "OVERRIDE_POINT"* "MOUNT_POINT);
     return E_SUCCESS;
 }
 
