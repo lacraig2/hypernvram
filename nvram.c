@@ -217,7 +217,7 @@ int nvram_get_buf(const char *key, char *buf, size_t sz) {
         return E_FAILURE;
     }
     snprintf(buffer, sizeof(buffer)-1, "NVRAM_GET_BUF (%s) (%p) (%zu)", key, buf, sz);
-    if (hc(buffer) == ERROR_VAL){
+    if (hc(buffer) == MAGIC_VAL){
         PRINT_MSG("%s\n", "Unable to get key!");
         return E_FAILURE;
     }
@@ -233,9 +233,9 @@ int nvram_get_int(const char *key) {
         return E_FAILURE;
     }
     snprintf(buffer, sizeof(buffer)-1, "NVRAM_GET_INT (%s)", key);
-    hc(buffer);
-    PRINT_MSG("= %d\n", (int)buffer);
-    return *(int*)buffer;
+    int out = hc(buffer);
+    PRINT_MSG("= %d\n", out);
+    return out;
 }
 
 int nvram_getall(char *buf, size_t len) {
@@ -388,8 +388,8 @@ int nvram_unset(const char *key) {
         return E_FAILURE;
     }
     snprintf(buffer, sizeof(buffer)-1, "NVRAM_UNSET (%s)", key);
-    hc(buffer);
-    PRINT_MSG("= %d\n", (int)buffer);
+    int ret = hc(buffer);
+    PRINT_MSG("= %d\n",ret);
     return *(int*)buffer;
 }
 

@@ -1,23 +1,29 @@
-CFLAGS=-O2 -fPIC -Wall
-LDFLAGS=-shared -nostdlib
+ARCH ?= x86_64
+TARGETS = libnvram-$(ARCH).so cli_example-$(ARCH) hc_test-$(ARCH)
+CFLAGS ?=
 
-TARGET=libnvram.so libnvram_ioctl.so
+.PHONY: all clean
 
-all: $(SOURCES) $(TARGET)
+ifeq ($(ARCH),mipsel-unknown-linux-musl)
+CFLAGS += -mips32r3
+else ifeq ($(ARCH),mips-unknown-linux-musl)
+CFLAGS += -mips32r3
+else ifeq ($(ARCH),mips64-unknown-linux-muslabi64)
+CFLAGS += -mips64r2
+else ifeq ($(ARCH),mips64el-unknown-linux-muslabi64)
+CFLAGS += -mips64r2
+endif
 
-libnvram.so: nvram.o
-	$(CC) $(LDFLAGS) $< -o $@
+all: $(TARGETS)
 
-libnvram_ioctl.so: nvram_ioctl.o
-	$(CC) $(LDFLAGS) $< -o $@
+libnvram-$(ARCH).so: nvram.c
+	$(CC) $(CFLAGS) -fPIC -shared -nostdlib $< -o $@
 
-.c.o:
-	$(CC) -c $(CFLAGS) $< -o $@
+hc_test-$(ARCH): hc_test.c
+	$(CC) $(CFLAGS) -static $< -o $@
 
-nvram_ioctl.o: nvram.c
-	$(CC) -c $(CFLAGS) -DFIRMAE_KERNEL $< -o $@
+cli_example-$(ARCH): cli_example.c
+	$(CC) $(CFLAGS) -L. -lnvram-$(ARCH) $< -o $@
 
 clean:
-	rm -f *.o libnvram.so libnvram_ioctl.so
-
-.PHONY: clean
+	rm -f $(TARGETS)

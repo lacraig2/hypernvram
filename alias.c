@@ -11,6 +11,7 @@ int false() {
     return E_FAILURE;
 }
 
+#pragma GCC diagnostic ignored "-Wattribute-alias="
 int nvram_load(void) __attribute__ ((alias ("nvram_init")));
 int nvram_loaddefault(void) __attribute__ ((alias ("nvram_set_default")));
 char *_nvram_get(const char *key) __attribute__ ((alias ("nvram_get")));
@@ -281,4 +282,5 @@ int nvram_bufset(int idx, const char *key, const char *val) {
     return nvram_set(key, val);
 }
 
+#pragma GCC diagostic pop
 #endif
