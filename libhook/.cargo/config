@@ -1,0 +1,9 @@
+[target.arm-unknown-linux-gnueabi]
+linker = "arm-linux-gnueabi-gcc"
+
+[target.mips-unknown-linux-gnu]
+linker = "mips-linux-gnu-gcc"
+
+[target.mipsel-unknown-linux-gnu]
+linker = "mipsel-linux-gnu-gcc"
+
