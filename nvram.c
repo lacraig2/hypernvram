@@ -20,95 +20,151 @@
 #include "config.h"
 #include "hypercall.h"
 
-/* Generate variable declarations for external NVRAM data. */
-#define NATIVE(a, b)
-#define PATH(a)
-#define FIRMAE_PATH(a)
-#define FIRMAE_PATH2(a)
-#define TABLE(a) \
-    extern const char *a[] __attribute__((weak));
-
-    NVRAM_DEFAULTS_PATH
-#undef TABLE
-#undef FIRMAE_PATH2
-#undef FIRMAE_PATH
-#undef PATH
-#undef NATIVE
-
-// https://lkml.org/lkml/2007/3/9/10
-#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]) + sizeof(typeof(int[1 - 2 * !!__builtin_types_compatible_p(typeof(arr), typeof(&arr[0]))])) * 0)
-
-#define PRINT_MSG(fmt, ...) do { if (DEBUG) { fprintf(stderr, "%s: "fmt, __FUNCTION__, __VA_ARGS__); } } while (0)
-
 /* Weak symbol definitions for library functions that may not be present */
-__typeof__(ftok) __attribute__((weak)) ftok;
-__typeof__(setmntent) __attribute__((weak)) setmntent;
 
-/* Global variables */
-static int init = 0;
-static char temp[BUFFER_SIZE];
-static int is_load_env = 0;
-static int firmae_nvram = 0;
+static int firmae_nvram = 0; // Controls some behavior later
 
-static void firmae_load_env()
-{
-    char* env = getenv("FIRMAE_NVRAM");
-    if (env && env[0] == 't')
-        firmae_nvram = 1;
-    is_load_env = 1;
-}
+struct nvram_op {
+    char key[BUFFER_SIZE];
+    union {
+        char outbuf[BUFFER_SIZE];
+        int outint;
+    };
+    size_t size;
+};
 
+static nvram_op pending;
+
+// XXX this used to create the following file:
+// /var/run/nvramd.pid: "Checked by certain Ralink routers"
 
 int nvram_init(void) {
-    FILE *f;
-
-    PRINT_MSG("%s\n", "Initializing NVRAM...");
-    hc("NVRAM INIT");
-
-    if (init) {
-        PRINT_MSG("%s\n", "Early termination!");
-        return E_SUCCESS;
-    }
-    init = 1;
-
-    // Checked by certain Ralink routers
-    if ((f = fopen("/var/run/nvramd.pid", "w+")) == NULL) {
-        PRINT_MSG("Unable to touch Ralink PID file: %s!\n", "/var/run/nvramd.pid");
-    }
-    else {
-        fclose(f);
-    }
-    return nvram_set_default();
-}
-
-int nvram_reset(void) {
-    PRINT_MSG("%s\n", "Reseting NVRAM...");
-
-    if (nvram_clear() != E_SUCCESS) {
-        PRINT_MSG("%s\n", "Unable to clear NVRAM!");
+    if (hc(NVRAM_INIT, NULL, 0) != 0) {
         return E_FAILURE;
     }
 
-    return nvram_set_default();
+    return E_SUCCESS;
+}
+
+int nvram_reset(void) {
+    if (hc(NVRAM_RESET, NULL, 0) != 0) {
+        return E_FAILURE;
+    }
+    return E_SUCCESS;
 }
 
 int nvram_clear(void) {
-    PRINT_MSG("%s\n", "Clearing NVRAM...");
-    hc("NVRAM clear");
+    if (hc(NVRAM_CLEAR, NULL, 0) != 0) {
+        return E_FAILURE;
+    }
     return E_SUCCESS;
 }
 
 int nvram_close(void) {
-    PRINT_MSG("%s\n", "Closing NVRAM...");
-    hc("NVRAM_CLOSE");
+    // Do we need a HC?
     return E_SUCCESS;
 }
+
+// Actual get/set functions
+
+
+char *nvram_get(const char *key) {
+// Some routers pass the key as the second argument, instead of the first.
+// We attempt to fix this directly in assembly for MIPS if the key is NULL.
+#if defined(mips)
+    if (!key) {
+        asm ("move %0, $a1" :"=r"(key));
+    }
+#endif
+
+    // We set key to the pending key and size to the outbuf size
+    // on return we get the value and it's size
+    strncpy(pending.key, key, MIN(sizeof(pending.key), strlen(key)));
+    pending.size = sizeof(pending.outbuf);
+
+    if (hc(NVRAM_GET, &pending, sizeof(pending)) != 0) {
+        return NULL;
+    }
+
+    // Allcoate buffer
+    return strndup(pending.outbuf, pending.size);
+}
+
+char *nvram_safe_get(const char *key) {
+    char* ret = nvram_get(key);
+    return ret ? ret : strdup("");
+}
+
+char *nvram_default_get(const char *key, const char *val) {
+    char *ret = nvram_get(key);
+
+    if (ret) {
+        return ret;
+    }
+
+    if (val && nvram_set(key, val)) {
+        return nvram_get(key);
+    }
+
+    return NULL;
+}
+
+int nvram_get_buf(const char *key, char *buf, size_t sz) {
+    if (!buf) {
+        //PRINT_MSG("NULL output buffer, key: %s!\n", key);
+        return E_FAILURE;
+    }
+
+    strncpy(pending.key, key, MIN(sizeof(pending.key), strlen(key)));
+    pending.size = sz;
+
+    if (hc(NVRAM_GET_BUF, &pending, sizeof(pending)) != 0) {
+        return E_FAILURE;
+    }
+
+    // Success. outbuf contains sz bytes
+    strncpy(buf, pending.outbuf, pending.sz);
+    return E_SUCCESS;
+}
+
+int nvram_get_int(const char *key) {
+    strncpy(pending.key, key, MIN(sizeof(pending.key), strlen(key)));
+
+    if (hc(NVRAM_GET_INT, &pending, sizeof(pending)) != 0) {
+        return E_FAILURE;
+    }
+    return pending.outint;
+}
+
+int nvram_getall(char *buf, size_t len) {
+    char buffer[PATH_MAX];
+    
+    if (!buf || !len) {
+        PRINT_MSG("%s\n", "NULL buffer or zero length!");
+        return E_FAILURE;
+    }
+
+    if (hc(NVRAM_GETALL, &buffer, sizeof(buffer)) != 0) {
+        return E_FAILURE;
+    }
+    return E_SUCCESS;
+}
+
+
+
 
 int nvram_list_add(const char *key, const char *val) {
     char buffer[PATH_MAX];
     snprintf(buffer, sizeof(buffer)-1, "NVRAM_LIST_ADD (%s) (%s)", key, val);
     PRINT_MSG("%s\n", buffer);
     hc(buffer);
+
+    struct nvram_op op;
+
+    strncpy(op.key, buf, sizeof(op.key));
+    strncpy(op.value, val, sizeof(op.value));
+    op.size = strlen(val);
+
     return *(int*)buffer;
 }
 
@@ -157,99 +213,6 @@ int nvram_list_del(const char *key, const char *val) {
     return nvram_set(key, temp);
 }
 
-char *nvram_get(const char *key) {
-// Some routers pass the key as the second argument, instead of the first.
-// We attempt to fix this directly in assembly for MIPS if the key is NULL.
-#if defined(mips)
-    if (!key) {
-        asm ("move %0, $a1" :"=r"(key));
-    }
-#endif
-
-    return (nvram_get_buf(key, temp, BUFFER_SIZE) == E_SUCCESS) ? strndup(temp, BUFFER_SIZE) : NULL;
-}
-
-char *nvram_safe_get(const char *key) {
-    char* ret = nvram_get(key);
-    return ret ? ret : strdup("");
-}
-
-char *nvram_default_get(const char *key, const char *val) {
-    char *ret = nvram_get(key);
-
-    PRINT_MSG("%s = %s || %s\n", key, ret, val);
-
-    if (ret) {
-        return ret;
-    }
-
-    if (val && nvram_set(key, val)) {
-        return nvram_get(key);
-    }
-
-    return NULL;
-}
-
-int nvram_get_buf(const char *key, char *buf, size_t sz) {
-    char path[PATH_MAX] = MOUNT_POINT;
-    if (!is_load_env) firmae_load_env();
-
-    if (!buf) {
-        PRINT_MSG("NULL output buffer, key: %s!\n", key);
-        return E_FAILURE;
-    }
-
-    if (!key) {
-        PRINT_MSG("NULL input key, buffer: %s!\n", buf);
-        if (firmae_nvram)
-            return E_SUCCESS;
-        else
-            return E_FAILURE;
-    }
-
-    PRINT_MSG("%s\n", key);
-
-    strncat(path, key, ARRAY_SIZE(path) - ARRAY_SIZE(MOUNT_POINT) - 1);
-    
-    char buffer[PATH_MAX];
-    if (!key) {
-        PRINT_MSG("%s\n", "NULL key!");
-        return E_FAILURE;
-    }
-    snprintf(buffer, sizeof(buffer)-1, "NVRAM_GET_BUF (%s) (%p) (%zu)", key, buf, sz);
-    if (hc(buffer) == MAGIC_VAL){
-        PRINT_MSG("%s\n", "Unable to get key!");
-        return E_FAILURE;
-    }
-    return E_SUCCESS;
-}
-
-
-
-int nvram_get_int(const char *key) {
-    char buffer[PATH_MAX];
-    if (!key) {
-        PRINT_MSG("%s\n", "NULL key!");
-        return E_FAILURE;
-    }
-    snprintf(buffer, sizeof(buffer)-1, "NVRAM_GET_INT (%s)", key);
-    int out = hc(buffer);
-    PRINT_MSG("= %d\n", out);
-    return out;
-}
-
-int nvram_getall(char *buf, size_t len) {
-    char buffer[PATH_MAX];
-    
-    if (!buf || !len) {
-        PRINT_MSG("%s\n", "NULL buffer or zero length!");
-        return E_FAILURE;
-    }
-    snprintf(buffer, sizeof(buffer)-1, "NVRAM_GETALL (%p) (%zu)", buf, len);
-    hc(buffer);
-    return E_SUCCESS;
-}
-
 int nvram_set(const char *key, const char *val) {
     char buffer[PATH_MAX];
     snprintf(buffer, sizeof(buffer)-1, "NVRAM_SET (%s) (%s)", key, val);
@@ -261,112 +224,6 @@ int nvram_set_int(const char *key, const int val) {
     char buffer[PATH_MAX];
     snprintf(buffer, sizeof(buffer)-1, "NVRAM_SET_INT (%s) (%d)", key, val);
     hc(buffer);
-    return E_SUCCESS;
-}
-
-int nvram_set_default(void) {
-    int ret = nvram_set_default_builtin();
-    PRINT_MSG("Loading built-in default values = %d!\n", ret);
-    if (!is_load_env) firmae_load_env();
-
-#define NATIVE(a, b) \
-    if (!system(a)) { \
-        PRINT_MSG("Executing native call to built-in function: %s (%p) = %d!\n", #b, b, b); \
-    }
-
-#define TABLE(a) \
-    PRINT_MSG("Checking for symbol \"%s\"...\n", #a); \
-    if (a) { \
-        PRINT_MSG("Loading from native built-in table: %s (%p) = %d!\n", #a, a, nvram_set_default_table(a)); \
-    }
-
-#define PATH(a) \
-    if (!access(a, R_OK)) { \
-        PRINT_MSG("Loading from default configuration file: %s = %d!\n", a, foreach_nvram_from(a, (void (*)(const char *, const char *, void *)) nvram_set, NULL)); \
-    }
-#define FIRMAE_PATH(a) \
-    if (firmae_nvram && !access(a, R_OK)) { \
-        PRINT_MSG("Loading from default configuration file: %s = %d!\n", a, foreach_nvram_from(a, (void (*)(const char *, const char *, void *)) nvram_set, NULL)); \
-    }
-#define FIRMAE_PATH2(a) \
-    if (firmae_nvram && !access(a, R_OK)) { \
-        PRINT_MSG("Loading from default configuration file: %s = %d!\n", a, parse_nvram_from_file(a)); \
-    }
-
-    NVRAM_DEFAULTS_PATH
-#undef FIRMAE_PATH2
-#undef FIRMAE_PATH
-#undef PATH
-#undef NATIVE
-#undef TABLE
-
-    // /usr/etc/default in DGN3500-V1.1.00.30_NA.zip
-    FILE *file;
-    if (firmae_nvram &&
-        !access("/firmadyne/nvram_files", R_OK) &&
-        (file = fopen("/firmadyne/nvram_files", "r")))
-    {
-        char line[256];
-        char *nvram_file;
-        char *file_type;
-        while (fgets(line, sizeof line, file) != NULL)
-        {
-            line[strlen(line) - 1] = '\0';
-            nvram_file = strtok(line, " ");
-            file_type = strtok(NULL, " ");
-            file_type = strtok(NULL, " ");
-
-            if (access(nvram_file, R_OK) == -1)
-                continue;
-
-            if (strstr(file_type, "ELF") == NULL)
-                PRINT_MSG("Loading from default configuration file: %s = %d!\n", nvram_file, parse_nvram_from_file(nvram_file));
-        }
-    }
-
-    return nvram_set_default_image();
-}
-
-static int nvram_set_default_builtin(void) {
-    int ret = E_SUCCESS;
-    char nvramKeyBuffer[100]="";
-    int index=0;
-    if (!is_load_env) firmae_load_env();
-
-    PRINT_MSG("%s\n", "Setting built-in default values!");
-
-#define ENTRY(a, b, c) \
-    if (b(a, c) != E_SUCCESS) { \
-        PRINT_MSG("Unable to initialize built-in NVRAM value %s!\n", a); \
-        ret = E_FAILURE; \
-    }
-
-#define FIRMAE_ENTRY(a, b, c) \
-    if (firmae_nvram && b(a, c) != E_SUCCESS) { \
-        PRINT_MSG("Unable to initialize built-in NVRAM value %s!\n", a); \
-        ret = E_FAILURE; \
-    }
-
-#define FIRMAE_FOR_ENTRY(a, b, c, d, e) \
-    index = d; \
-    if (firmae_nvram) { \
-        while (index != e) { \
-            snprintf(nvramKeyBuffer, 0x1E, a, index++); \
-            ENTRY(nvramKeyBuffer, b, c) \
-        } \
-    }
-
-    NVRAM_DEFAULTS
-#undef FIRMAE_FOR_ENTRY
-#undef FIRMAE_ENTRY
-#undef ENTRY
-
-    return ret;
-}
-
-static int nvram_set_default_image(void) {
-    // PRINT_MSG("%s\n", "Copying overrides from defaults folder!");
-    // system("/bin/cp "OVERRIDE_POINT"* "MOUNT_POINT);
     return E_SUCCESS;
 }
 

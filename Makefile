@@ -1,6 +1,7 @@
 ARCH ?= x86_64
 TARGETS = libnvram-$(ARCH).so cli_example-$(ARCH) hc_test-$(ARCH)
 CFLAGS ?=
+LDFLAGS ?=
 
 .PHONY: all clean
 
@@ -12,6 +13,9 @@ else ifeq ($(ARCH),mips64-unknown-linux-muslabi64)
 CFLAGS += -mips64r2
 else ifeq ($(ARCH),mips64el-unknown-linux-muslabi64)
 CFLAGS += -mips64r2
+
+else ifeq ($(ARCH),arm-linux-musleabi)
+LDFLAGS += /opt/cross/arm-linux-musleabi-cross/
 endif
 
 all: $(TARGETS)
