@@ -28,8 +28,8 @@ collect debug info:
     nc -q 0 -l -p 8889 | tar -xv
 '''
 
-debug = False
-host = "IP_ADDR"
+debug = True
+host = "18.4.85.151"
 host_serve_port = 8809
 host_debug_port = 8889
 
@@ -49,12 +49,16 @@ def run_cmd():
         print(panda.run_serial_cmd("sudo sysctl -w kernel.core_pattern=/tmp/core"))
 
     cli = f"cli_example-{target}"
+    print(panda.run_serial_cmd(f"wget http://{host}:{host_serve_port}/ld-musl-i386.so.1 "))
+
     print(panda.run_serial_cmd(f"wget http://{host}:{host_serve_port}/{target}/{cli}"))
     print(panda.run_serial_cmd(f"wget http://{host}:{host_serve_port}/{target}/libnvram-{target}.so"))
+    print(panda.run_serial_cmd(f"chmod 777 ld-musl-i386.so.1 "))
+    print(panda.run_serial_cmd(f"cp ld-musl-i386.so.1  /lib/"))
     print(panda.run_serial_cmd(f"chmod +x {cli}"))
     print(panda.run_serial_cmd(f"chmod +x libnvram-{target}.so"))
     print(panda.run_serial_cmd(f"file ./{cli}"))
-    print(panda.run_serial_cmd(f"ls -la"))
+    print(panda.run_serial_cmd(f"ls -la /lib"))
     print(panda.run_serial_cmd(f"bash -c 'LD_LIBRARY_PATH=$PWD ./{cli}'"))
     
     # if we're seriously debugging let's send core dumps back to the host

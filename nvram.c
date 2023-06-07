@@ -63,7 +63,8 @@ int nvram_init(void) {
     FILE *f;
 
     PRINT_MSG("%s\n", "Initializing NVRAM...");
-    hc("NVRAM INIT");
+    char * msg = "NVRAM INIT";
+    hc(&msg,1);
 
     if (init) {
         PRINT_MSG("%s\n", "Early termination!");
@@ -94,21 +95,24 @@ int nvram_reset(void) {
 
 int nvram_clear(void) {
     PRINT_MSG("%s\n", "Clearing NVRAM...");
-    hc("NVRAM clear");
+    char* msg = "NVRAM_CLEAR";
+    hc(&msg,1);
     return E_SUCCESS;
 }
 
 int nvram_close(void) {
     PRINT_MSG("%s\n", "Closing NVRAM...");
-    hc("NVRAM_CLOSE");
+    char* msg = "NVRAM_CLOSE";
+    hc(&msg,1);
     return E_SUCCESS;
 }
 
 int nvram_list_add(const char *key, const char *val) {
-    char buffer[PATH_MAX];
-    snprintf(buffer, sizeof(buffer)-1, "NVRAM_LIST_ADD (%s) (%s)", key, val);
-    PRINT_MSG("%s\n", buffer);
-    hc(buffer);
+
+    char* core =  "NVRAM_LIST_ADD";
+    char* buffer[3] = {core,key,val};
+    PRINT_MSG("%s %s %s\n", buffer[0],buffer[1],buffer[2]);
+    hc(buffer,3);
     return *(int*)buffer;
 }
 
@@ -192,8 +196,6 @@ char *nvram_default_get(const char *key, const char *val) {
 
 int nvram_get_buf(const char *key, char *buf, size_t sz) {
     char path[PATH_MAX] = MOUNT_POINT;
-    if (!is_load_env) firmae_load_env();
-
     if (!buf) {
         PRINT_MSG("NULL output buffer, key: %s!\n", key);
         return E_FAILURE;
@@ -211,13 +213,19 @@ int nvram_get_buf(const char *key, char *buf, size_t sz) {
 
     strncat(path, key, ARRAY_SIZE(path) - ARRAY_SIZE(MOUNT_POINT) - 1);
     
-    char buffer[PATH_MAX];
+    
+    char* core ="NVRAM_GET_BUF";
     if (!key) {
         PRINT_MSG("%s\n", "NULL key!");
         return E_FAILURE;
     }
-    snprintf(buffer, sizeof(buffer)-1, "NVRAM_GET_BUF (%s) (%p) (%zu)", key, buf, sz);
-    if (hc(buffer) == MAGIC_VAL){
+
+    char buf_ptr[PATH_MAX];
+    snprintf(buf_ptr, sizeof(buf_ptr)-1, "%p",buf);
+    char size_ptr[PATH_MAX];
+    snprintf(size_ptr, sizeof(size_ptr)-1, "%zu",sz);
+    char *buffer[4] = {core,key,buf_ptr,size_ptr};
+    if (hc(buffer,4) == MAGIC_VAL){
         PRINT_MSG("%s\n", "Unable to get key!");
         return E_FAILURE;
     }
@@ -227,40 +235,45 @@ int nvram_get_buf(const char *key, char *buf, size_t sz) {
 
 
 int nvram_get_int(const char *key) {
-    char buffer[PATH_MAX];
+    char* core = "NVRAM_GET_INT";
     if (!key) {
         PRINT_MSG("%s\n", "NULL key!");
         return E_FAILURE;
     }
-    snprintf(buffer, sizeof(buffer)-1, "NVRAM_GET_INT (%s)", key);
-    int out = hc(buffer);
+    char* buffer[2] = {core,key};
+    int out = hc(buffer, 2);
     PRINT_MSG("= %d\n", out);
     return out;
 }
 
 int nvram_getall(char *buf, size_t len) {
-    char buffer[PATH_MAX];
-    
+    char* core = "NVRAM_LIST_ADD";
     if (!buf || !len) {
         PRINT_MSG("%s\n", "NULL buffer or zero length!");
         return E_FAILURE;
     }
-    snprintf(buffer, sizeof(buffer)-1, "NVRAM_GETALL (%p) (%zu)", buf, len);
-    hc(buffer);
+    char buf_ptr[PATH_MAX];
+    snprintf(buf_ptr, sizeof(buf_ptr)-1, "%p", buf );
+    char size_ptr[PATH_MAX];
+    snprintf(size_ptr, sizeof(size_ptr)-1, "%zu", len );
+    char* buffer[3] = {core,buf_ptr,size_ptr};
+    hc(buffer,3);
     return E_SUCCESS;
 }
 
 int nvram_set(const char *key, const char *val) {
-    char buffer[PATH_MAX];
-    snprintf(buffer, sizeof(buffer)-1, "NVRAM_SET (%s) (%s)", key, val);
-    hc(buffer);
+    char* core ="NVRAM_LIST_ADD";
+    char* buffer[3] ={core,key,val};
+    hc(buffer,3);
     return E_SUCCESS;
 }
 
 int nvram_set_int(const char *key, const int val) {
-    char buffer[PATH_MAX];
-    snprintf(buffer, sizeof(buffer)-1, "NVRAM_SET_INT (%s) (%d)", key, val);
-    hc(buffer);
+    char* core = "NVRAM_SET_INT";
+    char  val_ptr[PATH_MAX];
+    snprintf(val_ptr, sizeof(val_ptr)-1, "%d", val);
+    char* buffer[3] = {core,key,val_ptr};
+    hc(buffer,3);
     return E_SUCCESS;
 }
 
@@ -382,13 +395,13 @@ static int nvram_set_default_table(const char *tbl[]) {
 }
 
 int nvram_unset(const char *key) {
-    char buffer[PATH_MAX];
+    char* core = "NVRAM_UNSET";
     if (!key) {
         PRINT_MSG("%s\n", "NULL key!");
         return E_FAILURE;
     }
-    snprintf(buffer, sizeof(buffer)-1, "NVRAM_UNSET (%s)", key);
-    int ret = hc(buffer);
+    char* buffer[2] = {core,key};
+    int ret = hc(buffer,2);
     PRINT_MSG("= %d\n",ret);
     return *(int*)buffer;
 }

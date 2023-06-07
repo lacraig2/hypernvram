@@ -10,11 +10,13 @@ int strnlen_n(char* s, int max_len){
 
 // #if defined(__x86_64__)
 #if defined(__x86_64__)
-static inline int hc(char *s) {
+static inline int hc(char **s,int len) {
     uint64_t eax = MAGIC_VAL;
     uint64_t ret = MAGIC_VAL;
-    uint64_t action = (uint32_t)strnlen_n(s, 0x1000);
-
+    for(int i = 0; i< len; i++){
+        PRINT_MSG("%s\n",s[i]);
+        strnlen_n(s[i],0x1000);
+    }
     asm __volatile__(
 	"movq %1, %%rax \t\n\
      movq %2, %%rdi \t\n\
@@ -23,17 +25,19 @@ static inline int hc(char *s) {
      mov %%rax, %0 \t\n\
     "
 	: "=m" (ret) /* output operand */
-	: "g" (eax), "g" (action), "g" (s) /* input operands */
+	: "g" (eax), "g" (len), "g" (s) /* input operands */
 	: "rdi", "rsi", "rdx", "eax" /* clobbered registers */
     );
 
     return ret;
 }
 #elif defined(__i386__) && !defined(__x86_64__)
-static inline int hc(char *s) {
+static inline int hc(char **s,int len) {
     int eax = MAGIC_VAL;
     int ret = MAGIC_VAL;
-    int action = (uint32_t)strnlen_n(s, 0x1000);
+    for(int i = 0; i< len; i++){
+        strnlen_n(s[i],0x1000);
+    }
 
     asm __volatile__(
 	"mov %1, %%eax \t\n\
@@ -43,18 +47,19 @@ static inline int hc(char *s) {
      mov %%eax, %0 \t\n\
     "
 	: "=g" (ret) /* output operand */
-	: "g" (eax), "g" (action), "g" (s) /* input operands */
+	: "g" (eax), "g" (len), "g" (s) /* input operands */
 	: "eax", "ebx", "ecx", "edx" /* clobbered registers */
     );
 
     return ret;
 }
 #elif defined(__arm__)
-static inline __attribute__((always_inline)) int hc(char *s) {
-    unsigned int action = (unsigned int) strnlen_n(s, 0x1000);
+static inline __attribute__((always_inline)) int hc(char **s, int len) {
     unsigned long r0 = MAGIC_VAL;
     int ret = MAGIC_VAL;
-
+    for(int i = 0; i< len; i++){
+        strnlen_n(s[i],0x1000);
+    }
         asm __volatile__("push {%%r0-%%r4} \t\n\
         mov %%r7, %1 \t\n\
         mov %%r0, %2 \t\n\
@@ -64,7 +69,7 @@ static inline __attribute__((always_inline)) int hc(char *s) {
         mov %0, %%r0 \t\n\
         pop {%%r0-%%r4} \t\n"
       : "=g"(ret) /* no output registers */
-      : "r" (r0), "r" (action), "r" (s), "r" (0) /* input registers */
+      : "r" (r0), "r" (len), "r" (s), "r" (0) /* input registers */
       : "r0", "r1", "r2", "r3", "r4" /* clobbered registers */
       );
     return ret;
