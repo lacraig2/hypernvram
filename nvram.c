@@ -14,7 +14,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <mntent.h>
-
 #include "alias.h"
 #include "nvram.h"
 #include "config.h"
@@ -43,13 +42,14 @@
 /* Weak symbol definitions for library functions that may not be present */
 __typeof__(ftok) __attribute__((weak)) ftok;
 __typeof__(setmntent) __attribute__((weak)) setmntent;
-
+void *dlsym(void *restrict handle, const char *restrict symbol);
 /* Global variables */
 static int init = 0;
 static char temp[BUFFER_SIZE];
 static int is_load_env = 0;
 static int firmae_nvram = 0;
-
+static int config;
+static char* (*DEFUALT_GET)(char*,char*) = NULL;
 static void firmae_load_env()
 {
     char* env = getenv("FIRMAE_NVRAM");
@@ -62,16 +62,19 @@ static void firmae_load_env()
 int nvram_init(void) {
     FILE *f;
 
-    PRINT_MSG("%s\n", "Initializing NVRAM...");
-    char * msg = "NVRAM INIT";
-    hc(&msg,1);
+
 
     if (init) {
         PRINT_MSG("%s\n", "Early termination!");
         return E_SUCCESS;
     }
     init = 1;
-
+    PRINT_MSG("%s\n", "Initializing NVRAM...");
+    char * msg = "NVRAM INIT";
+    config = hc(&msg,1);
+    if(config & 1){
+      DEFUALT_GET = dlsym((void*) -1, "nvram_default_get");
+    }
     // Checked by certain Ralink routers
     if ((f = fopen("/var/run/nvramd.pid", "w+")) == NULL) {
         PRINT_MSG("Unable to touch Ralink PID file: %s!\n", "/var/run/nvramd.pid");
@@ -111,7 +114,6 @@ int nvram_list_add(const char *key, const char *val) {
 
     char* core =  "NVRAM_LIST_ADD";
     char* buffer[3] = {core,key,val};
-    PRINT_MSG("%s %s %s\n", buffer[0],buffer[1],buffer[2]);
     hc(buffer,3);
     return *(int*)buffer;
 }
@@ -179,6 +181,8 @@ char *nvram_safe_get(const char *key) {
 }
 
 char *nvram_default_get(const char *key, const char *val) {
+    if(!init) nvram_init();
+    if(DEFUALT_GET) return (*DEFUALT_GET)(key,val);
     char *ret = nvram_get(key);
 
     PRINT_MSG("%s = %s || %s\n", key, ret, val);
@@ -220,9 +224,9 @@ int nvram_get_buf(const char *key, char *buf, size_t sz) {
         return E_FAILURE;
     }
 
-    char buf_ptr[PATH_MAX];
+    char buf_ptr[20];
     snprintf(buf_ptr, sizeof(buf_ptr)-1, "%p",buf);
-    char size_ptr[PATH_MAX];
+    char size_ptr[20];
     snprintf(size_ptr, sizeof(size_ptr)-1, "%zu",sz);
     char *buffer[4] = {core,key,buf_ptr,size_ptr};
     if (hc(buffer,4) == MAGIC_VAL){
@@ -247,14 +251,14 @@ int nvram_get_int(const char *key) {
 }
 
 int nvram_getall(char *buf, size_t len) {
-    char* core = "NVRAM_LIST_ADD";
+    char* core = "NVRAM_GETALL";
     if (!buf || !len) {
         PRINT_MSG("%s\n", "NULL buffer or zero length!");
         return E_FAILURE;
     }
-    char buf_ptr[PATH_MAX];
+    char buf_ptr[BUFFER_SIZE];
     snprintf(buf_ptr, sizeof(buf_ptr)-1, "%p", buf );
-    char size_ptr[PATH_MAX];
+    char size_ptr[BUFFER_SIZE];
     snprintf(size_ptr, sizeof(size_ptr)-1, "%zu", len );
     char* buffer[3] = {core,buf_ptr,size_ptr};
     hc(buffer,3);
@@ -262,7 +266,12 @@ int nvram_getall(char *buf, size_t len) {
 }
 
 int nvram_set(const char *key, const char *val) {
-    char* core ="NVRAM_LIST_ADD";
+    char* core ="NVRAM_SET";
+    if (key == NULL || val == NULL)
+    {
+        return E_FAILURE;
+    }
+    
     char* buffer[3] ={core,key,val};
     hc(buffer,3);
     return E_SUCCESS;
@@ -270,7 +279,7 @@ int nvram_set(const char *key, const char *val) {
 
 int nvram_set_int(const char *key, const int val) {
     char* core = "NVRAM_SET_INT";
-    char  val_ptr[PATH_MAX];
+    char  val_ptr[20];
     snprintf(val_ptr, sizeof(val_ptr)-1, "%d", val);
     char* buffer[3] = {core,key,val_ptr};
     hc(buffer,3);
@@ -403,7 +412,7 @@ int nvram_unset(const char *key) {
     char* buffer[2] = {core,key};
     int ret = hc(buffer,2);
     PRINT_MSG("= %d\n",ret);
-    return *(int*)buffer;
+    return ret;
 }
 
 int nvram_safe_unset(const char *key) {

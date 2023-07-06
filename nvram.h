@@ -32,7 +32,7 @@ char *nvram_get(const char *key);
 char *nvram_safe_get(const char *key);
 // Given a key, gets the corresponding NVRAM value. If key is non-existent, returns val.
 // Otherwise, returns NULL. Will dynamically allocate memory.
-char *nvram_default_get(const char *key, const char *val);
+char *nvram_default_get_2(const char *key, const char *val);
 // Given a key, gets the corresponding NVRAM value into a user-supplied buffer.
 // Will hold lock.
 int nvram_get_buf(const char *key, char *buf, size_t sz);
