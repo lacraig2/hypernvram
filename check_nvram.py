@@ -28,8 +28,8 @@ collect debug info:
     nc -q 0 -l -p 8889 | tar -xv
 '''
 
-debug = True
-host = "18.4.85.151"
+debug = False
+host = "IP_ADDR"
 host_serve_port = 8809
 host_debug_port = 8889
 
