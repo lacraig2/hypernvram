@@ -78,4 +78,16 @@ int agApi_fwGetFirstTriggerConf(char *a1);
 int agApi_fwGetNextTriggerConf(char *a1);
 #endif
 
+#define MAGIC_VALUE 0x4e564843
+#define NVRAM_CLOSE 0x31838180 
+#define NVRAM_INIT 0x31838181 
+#define NVRAM_CLEAR 0x31838182 
+#define NVRAM_LIST_ADD 0x31838183 
+#define NVRAM_GET_BUF 0x31838184 
+#define NVRAM_GET_INT 0x31838185 
+#define NVRAM_GETALL 0x31838186 
+#define NVRAM_SET 0x31838187 
+#define NVRAM_SET_INT 0x31838188 
+#define NVRAM_UNSET 0x31838189 
+#define NVRAM_COMMIT 0x3183818a 
 #endif

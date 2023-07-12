@@ -61,17 +61,13 @@ static void firmae_load_env()
 
 int nvram_init(void) {
     FILE *f;
-
-
-
     if (init) {
         PRINT_MSG("%s\n", "Early termination!");
         return E_SUCCESS;
     }
     init = 1;
     PRINT_MSG("%s\n", "Initializing NVRAM...");
-    char * msg = "NVRAM INIT";
-    config = hc(&msg,1);
+    config = hc(NVRAM_INIT,NULL,0);
     if(config & 1){
       DEFUALT_GET = dlsym((void*) -1, "nvram_default_get");
     }
@@ -98,23 +94,20 @@ int nvram_reset(void) {
 
 int nvram_clear(void) {
     PRINT_MSG("%s\n", "Clearing NVRAM...");
-    char* msg = "NVRAM_CLEAR";
-    hc(&msg,1);
+    hc(NVRAM_CLEAR,NULL,0);
     return E_SUCCESS;
 }
 
 int nvram_close(void) {
     PRINT_MSG("%s\n", "Closing NVRAM...");
-    char* msg = "NVRAM_CLOSE";
-    hc(&msg,1);
+    hc(NVRAM_CLOSE, NULL,0);
     return E_SUCCESS;
 }
 
 int nvram_list_add(const char *key, const char *val) {
 
-    char* core =  "NVRAM_LIST_ADD";
-    char* buffer[3] = {core,key,val};
-    hc(buffer,3);
+    char* buffer[2] = {key,val};
+    hc(NVRAM_LIST_ADD,buffer,2);
     return *(int*)buffer;
 }
 
@@ -199,37 +192,20 @@ char *nvram_default_get(const char *key, const char *val) {
 }
 
 int nvram_get_buf(const char *key, char *buf, size_t sz) {
-    char path[PATH_MAX] = MOUNT_POINT;
-    if (!buf) {
-        PRINT_MSG("NULL output buffer, key: %s!\n", key);
-        return E_FAILURE;
-    }
-
-    if (!key) {
-        PRINT_MSG("NULL input key, buffer: %s!\n", buf);
-        if (firmae_nvram)
-            return E_SUCCESS;
-        else
-            return E_FAILURE;
-    }
-
-    PRINT_MSG("%s\n", key);
-
-    strncat(path, key, ARRAY_SIZE(path) - ARRAY_SIZE(MOUNT_POINT) - 1);
-    
-    
-    char* core ="NVRAM_GET_BUF";
     if (!key) {
         PRINT_MSG("%s\n", "NULL key!");
         return E_FAILURE;
     }
-
+    if (!buf) {
+        PRINT_MSG("NULL output buffer, key: %s!\n", key);
+        return E_FAILURE;
+    }
     char buf_ptr[20];
     snprintf(buf_ptr, sizeof(buf_ptr)-1, "%p",buf);
     char size_ptr[20];
     snprintf(size_ptr, sizeof(size_ptr)-1, "%zu",sz);
-    char *buffer[4] = {core,key,buf_ptr,size_ptr};
-    if (hc(buffer,4) == MAGIC_VAL){
+    char *buffer[3] = {key,buf_ptr,size_ptr};
+    if (hc(NVRAM_GET_BUF,buffer,3)){
         PRINT_MSG("%s\n", "Unable to get key!");
         return E_FAILURE;
     }
@@ -239,19 +215,16 @@ int nvram_get_buf(const char *key, char *buf, size_t sz) {
 
 
 int nvram_get_int(const char *key) {
-    char* core = "NVRAM_GET_INT";
     if (!key) {
         PRINT_MSG("%s\n", "NULL key!");
         return E_FAILURE;
     }
-    char* buffer[2] = {core,key};
-    int out = hc(buffer, 2);
+    int out = hc(NVRAM_GET_INT,&key, 1);
     PRINT_MSG("= %d\n", out);
     return out;
 }
 
 int nvram_getall(char *buf, size_t len) {
-    char* core = "NVRAM_GETALL";
     if (!buf || !len) {
         PRINT_MSG("%s\n", "NULL buffer or zero length!");
         return E_FAILURE;
@@ -260,29 +233,27 @@ int nvram_getall(char *buf, size_t len) {
     snprintf(buf_ptr, sizeof(buf_ptr)-1, "%p", buf );
     char size_ptr[BUFFER_SIZE];
     snprintf(size_ptr, sizeof(size_ptr)-1, "%zu", len );
-    char* buffer[3] = {core,buf_ptr,size_ptr};
-    hc(buffer,3);
+    char* buffer[2] = {buf_ptr,size_ptr};
+    hc(NVRAM_GETALL,buffer,2);
     return E_SUCCESS;
 }
 
 int nvram_set(const char *key, const char *val) {
-    char* core ="NVRAM_SET";
     if (key == NULL || val == NULL)
     {
         return E_FAILURE;
     }
-    
-    char* buffer[3] ={core,key,val};
-    hc(buffer,3);
+    char* buffer[2] ={key,val};
+    hc(NVRAM_SET,buffer,2);
     return E_SUCCESS;
 }
 
 int nvram_set_int(const char *key, const int val) {
-    char* core = "NVRAM_SET_INT";
+    
     char  val_ptr[20];
     snprintf(val_ptr, sizeof(val_ptr)-1, "%d", val);
-    char* buffer[3] = {core,key,val_ptr};
-    hc(buffer,3);
+    char* buffer[2] = {key,val_ptr};
+    hc(NVRAM_SET_INT,buffer,2);
     return E_SUCCESS;
 }
 
@@ -404,13 +375,11 @@ static int nvram_set_default_table(const char *tbl[]) {
 }
 
 int nvram_unset(const char *key) {
-    char* core = "NVRAM_UNSET";
     if (!key) {
         PRINT_MSG("%s\n", "NULL key!");
         return E_FAILURE;
     }
-    char* buffer[2] = {core,key};
-    int ret = hc(buffer,2);
+    int ret = hc(NVRAM_UNSET,&key,1);
     PRINT_MSG("= %d\n",ret);
     return ret;
 }
@@ -458,6 +427,7 @@ int nvram_invmatch(const char *key, const char *val) {
 }
 
 int nvram_commit(void) {
+    hc(NVRAM_COMMIT,NULL,0); 
     return E_SUCCESS;
 }
 
@@ -482,7 +452,7 @@ int parse_nvram_from_file(const char *file)
     fread(buffer, 1, fileLen, f);
     fclose(f);
 
-    /* split the buffer including null byte */
+    /* split the buffer including NULL byte */
     #define LEN 1024
     int i=0,j=0,k=0; int left = 1;
     char *key="", *val="";
