@@ -47,13 +47,10 @@ class NVramHC(PyPlugin):
             if  panda.arch.get_arg(cpu, 0, convention="syscall") != MAGIC_VALUE:
                 print(f"F[ound hypercall, but value was {hex(panda.arch.get_arg(cpu, 0, convention='syscall'))}")
                 return False
-            len = panda.arch.get_arg(cpu, 2, convention='syscall')
-            pointer_size = panda.bits //8
+            length = panda.arch.get_arg(cpu, 2, convention='syscall')
+            pointer_size = panda.bits // 8
             argptr =  panda.arch.get_arg(cpu, 3, convention='syscall')
-            argstr = []
-            for x in range(0,len):
-                addr = int.from_bytes(panda.virtual_memory_read(cpu, argptr + ( pointer_size * x), pointer_size),'little')
-                argstr.append(panda.read_str(cpu, addr))
+            argstr = [panda.read_str(cpu, addr) for addr in panda.virtual_memory_read(cpu, argptr, pointer_size * length, fmt="ptrlist")]
             if self.log:
                 with open(self.write_file, "a") as f:
                     f.write(f"\n{magic:x} {argstr}\n")
@@ -94,7 +91,15 @@ class NVramHC(PyPlugin):
         self.nvram.copy()
     @PyPlugin.ppp_export
     def add_nvram(self, key,val):
-        self.nvram[key] = val.encode() + b'\0'
+        if type(val) is str:
+            value_set = val.encode()
+        elif type(val) is bytes:
+            value_set = val
+        elif type(val) is int:
+            value_set = str(val).encode()
+        else:
+            raise Exception("invalid type")
+        self.nvram[key] = value_set + b'\0'
     '''Takes a python dict as nvram'''
     @PyPlugin.ppp_export
     def set_nvram(self,nvram):
@@ -116,13 +121,20 @@ class NVramHC(PyPlugin):
 
     def get_int(self, cpu, args):
         key = args[0]
-        try:
-            result = self.nvram[key]
-            vali = int(result.decode().strip('\x00'))
-            if not self.ppp_run_cb("nvram_get_int",cpu,key,vali):
-                self.panda.arch.set_retval(cpu,vali,convention='syscall')
-        except:
-            self.panda.arch.set_retval(cpu, 0,convention='syscall')
+        if result := self.nvram.get(key, None):
+            numstr = result.decode().strip('\x00')
+            try:
+                num = int(numstr)
+            except ValueError:
+                num = 0
+            vali = self.panda.ffi.cast("target_ulong", num)
+            if not self.ppp_run_cb("nvram_get_int", cpu, key, vali):
+                self.panda.arch.set_retval(cpu, vali, convention='syscall')
+        else:
+            if key not in self.missing:
+                print(f"Key {key} not found")
+            self.missing[key] = self.missing.get(key,0) +1
+            self.panda.arch.set_retval(cpu, 0, convention='syscall')
          
     def set(self, cpu, args):
         key = args[0]
@@ -137,29 +149,31 @@ class NVramHC(PyPlugin):
         key = args[0]
         buf = int(args[1], 16)
         sz = int(args[2])
-        try:
-            b = self.nvram[key]
-        except:
+        if b := self.nvram.get(key, None):
             if not self.ppp_run_cb("nvram_get",cpu,key,buf,sz, None, None):
                 self.panda.arch.set_retval(cpu, NVRAM_GET_BUF,'syscall')
-                return
+            if key not in self.missing:
+                print(f"Key {key} not found")
+                self.missing[key] = self.missing.get(key,0) +1
+            return
         if len(b) > sz:
             a = b[:sz-1] + b'\0'
         else:
             a = b
         if not self.ppp_run_cb("nvram_get",cpu,key,buf,sz, a,b):
-            self.panda.virtual_memory_write(cpu, buf,a)
-            self.panda.arch.set_retval(cpu, 0,'syscall')
+            try:
+                self.panda.virtual_memory_write(cpu, buf,a)
+                self.panda.arch.set_retval(cpu, 0,'syscall')
+            except ValueError:
+                self.panda.arch.set_retval(cpu, NVRAM_GET_BUF,'syscall') 
 
     def unset(self,cpu, args):
         key = args[0]
-        try:
-            self.nvram.pop(key)
-            if self.log:
-                with open(self.write_file, "a") as f:
-                    f.write(f"\n{self.nvram}\n")
-            self.panda.arch.set_retval(cpu, 1)
-        except:
+        fail = -1== self.nvram.pop(key, -1)
+        if self.log:
+            with open(self.write_file, "a") as f:
+                f.write(f"\n{self.nvram}\n")
+        if fail:
             self.panda.arch.set_retval(cpu, 0)
 
     def set_int(self,cpu,args):
@@ -170,19 +184,19 @@ class NVramHC(PyPlugin):
             if self.log:
                 with open(self.write_file, "a") as f:
                     f.write(f"\n{self.nvram}\n")
-            self.panda.arch.set_retval(cpu,int.from_bytes(vali.to_bytes(self.panda.bits, 'little',signed=True), 'little'),'syscall')
+            self.panda.arch.set_retval(cpu,self.panda.to_unsigned_guest(vali))
     
     def getall(self,cpu,args):
         buf = int(args[0], 16)
         sz = int(args[1])
-        try:
-            b = self.nvram_byte_str()
-            size = b[:sz].rfind(b"\0")
-            if not self.ppp_run_cb("nvram_getall",cpu,buf,sz,b,b[:size+1]):
+        b = self.nvram_byte_str()
+        size = b[:sz].rfind(b"\0")
+        if not self.ppp_run_cb("nvram_getall",cpu,buf,sz,b,b[:size+1]):
+            try:
                 self.panda.virtual_memory_write(cpu, buf,b[:size+1])
                 self.panda.arch.set_retval(cpu, 1,'syscall')
-        except:
-            self.panda.arch.set_retval(cpu, NVRAM_GETALL,'syscall')
+            except ValueError:
+                    self.panda.arch.set_retval(cpu, NVRAM_GETALL,'syscall')
     '''Current CALLBACKS
         nvram_block_all(cpu, magic, argstr)
         nvram_init(cpu)
@@ -202,3 +216,13 @@ class NVramHC(PyPlugin):
         self.ppp_cb_boilerplate("nvram_get_int")
         self.ppp_cb_boilerplate("nvram_set_int")
         self.ppp_cb_boilerplate("nvram_list_add")
+
+    def uninit(self):
+        import ipdb
+        ipdb.set_trace()
+        with open("missing_nvram.txt","w") as f:
+            keys = list(self.missing.keys())
+            sorted(keys, key=lambda x: self.missing[x])
+            for k in keys:
+                f.write(f"{k}: {self.missing[k]} \n")
+        print(f"Missing NVRAM: {self.missing}")
