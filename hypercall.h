@@ -1,21 +1,15 @@
 #ifndef MAGIC_VALUE
 #error Needs MAGIC_VALUE
 #endif
-int strnlen_n(char* s, int max_len){
-    int i = 0;
-    while (i < max_len && s[i] != '\0'){
-        i++;
-    }
-    return i;
-}
-
+#define RETRY 0xDEADBEEF
 // #if defined(__x86_64__)
 #if defined(__x86_64__)
-static inline int hc(int magic, char **s,int len) {
+static inline int hc(int magic, void **s,int len) {
     uint64_t eax = magic;
     uint64_t ret = magic;
+    volatile int x = 0;
     for(int i = 0; i< len; i++){
-        strnlen_n(s[i],0x1000);
+        x |= *((int*)s[i]);
     }
     asm __volatile__(
 	"movq %1, %%rax \t\n\
@@ -32,35 +26,47 @@ static inline int hc(int magic, char **s,int len) {
     return ret;
 }
 #elif defined(__i386__) && !defined(__x86_64__)
-static inline int hc(int magic,char **s,int len) {
+static inline int hc(int magic,void **s,int len) {
     int eax = MAGIC_VALUE;
     int ret = MAGIC_VALUE;
-    for(int i = 0; i< len; i++){
-        strnlen_n(s[i],0x1000);
+        int y = 0;
+    do{
+        ret = MAGIC_VALUE;
+        volatile int x = 0;
+        for(int i = 0; i< len; i++){
+            x |= *(((int*)s[i])+y);
+        }
+        y++;
+        asm __volatile__(
+        "mov %1, %%eax \t\n\
+        mov %2, %%ebx \t\n\
+        mov %3, %%ecx \t\n\
+        mov %4, %%edx \t\n\
+        cpuid \t\n\
+        mov %%eax, %0 \t\n\
+        "
+        : "=g" (ret) /* output operand */
+        : "g" (eax), "g" (magic), "g" (len), "g" (s) /* input operands */
+        : "eax", "ebx", "ecx", "edx" /* clobbered registers */
+        );
+    }while(ret == RETRY);
+    if(ret & CONTROL == CONTROL){
+        control(ret & CONTROL_MASK);
     }
-
-    asm __volatile__(
-	"mov %1, %%eax \t\n\
-     mov %2, %%ebx \t\n\
-     mov %3, %%ecx \t\n\
-     mov %4, %%edx \t\n\
-     cpuid \t\n\
-     mov %%eax, %0 \t\n\
-    "
-	: "=g" (ret) /* output operand */
-	: "g" (eax), "g" (magic), "g" (len), "g" (s) /* input operands */
-	: "eax", "ebx", "ecx", "edx" /* clobbered registers */
-    );
-
     return ret;
 }
 #elif defined(__arm__)
-static inline __attribute__((always_inline)) int hc(int magic,char **s, int len) {
+static inline __attribute__((always_inline)) int hc(int magic,void **s, int len) {
     unsigned long r0 = MAGIC_VALUE;
     int ret = MAGIC_VALUE;
-    for(int i = 0; i< len; i++){
-        strnlen_n(s[i],0x1000);
-    }
+    int y = 0;
+    do{
+        ret = MAGIC_VALUE;
+        volatile int x = 0;
+        for(int i = 0; i< len; i++){
+            x |= *(((int*)s[i])+y);
+        }
+        y++;
         asm __volatile__(
         "mov %%r7, %1 \t\n\
         mov %%r0, %2 \t\n\
@@ -72,14 +78,19 @@ static inline __attribute__((always_inline)) int hc(int magic,char **s, int len)
       : "=g"(ret) /* no output registers */
       : "r" (r0), "r" (magic), "r" (len), "r" (s), "r" (0) /* input registers */
       : "r0", "r1", "r2", "r3", "r4", "r7" /* clobbered registers */);
+    }while(ret == RETRY);
+    if(ret & CONTROL == CONTROL){
+        control(ret & CONTROL_MASK);
+    }
     return ret;
 }
 #elif defined(__mips64)
-static inline int hc(int magic, char **s, int len) {
+static inline int hc(int magic, void **s, int len) {
     unsigned long r0 = MAGIC_VALUE;
     int ret = MAGIC_VALUE;
+    volatile  x = 0;
     for(int i = 0; i< len; i++){
-        strnlen_n(s[i],0x1000);
+        x |= *((int*)s[i]);
     }
     asm __volatile__(
     "move $2, %1\t\n"
@@ -96,32 +107,40 @@ static inline int hc(int magic, char **s, int len) {
     return ret;
 }
 #elif defined(mips) || defined(__mips__) || defined(__mips)
-static inline int hc(int magic,char  **s,int len) {
+static inline int hc(int magic,void  **s,int len) {
     unsigned long r0 = MAGIC_VALUE;
-    int ret = MAGIC_VALUE;
-    for(int i = 0; i< len; i++){
-        strnlen_n(s[i],0x1000);
-    }
-    asm __volatile__(
-    "move $2, %1\t\n"
-    "move $4, %2\t\n"
-    "move $5, %3\t\n"
-    "move $6, %4\t\n"
-    "movz $0, $0, $0\t\n"
-    "move %0, $2\t\n"
-    : "=g"(ret) /* output operand */
-    : "r" (r0), "r" (magic), "r" (len), "r" (s)  /* input operands */
-    : "a0", "a1", "a2", "a3" /* clobbered registers */
-    );
+    int ret;
+    int y = 0;
+    do{
+        ret = MAGIC_VALUE;
+        volatile int x = 0;
+        y++;
+        for(int i = 0; i< len; i++){
+            x |= *(((int*)s[i]) +y);
+        }
+        
+        asm __volatile__(
+        "move $2, %1\t\n"
+        "move $4, %2\t\n"
+        "move $5, %3\t\n"
+        "move $6, %4\t\n"
+        "movz $0, $0, $0\t\n"
+        "move %0, $2\t\n"
+        : "=g"(ret) /* output operand */
+        : "r" (r0), "r" (magic), "r" (len), "r" (s)  /* input operands */
+        : "a0", "a1", "a2", "a3" /* clobbered registers */
+        );
+    }while(ret == RETRY);
 
     return ret;
 }
 #elif defined(__aarch64__)
-static inline __attribute__((always_inline)) int hc(int magic, char **s,int len) {
+static inline __attribute__((always_inline)) int hc(int magic, void **s,int len) {
     unsigned long r0 = MAGIC_VALUE;
     int ret = MAGIC_VALUE;
+    volatile int x = 0;
     for(int i = 0; i< len; i++){
-        strnlen_n(s[i],0x1000);
+        x |= *((int*)s[i]);
     }
     asm __volatile__("stp x0, x1, [sp, #-16]! \t\n\
         stp x2, x3, [sp, #-16]! \t\n\
