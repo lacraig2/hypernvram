@@ -199,6 +199,9 @@ char *nvram_default_get(const char *key, const char *val) {
 }
 
 int nvram_get_buf(const char *key, char *buf, size_t sz) {
+    if(!init){
+        nvram_init();
+    }
     if (!key) {
         PRINT_MSG("%s\n", "NULL key!");
         return E_FAILURE;
@@ -232,6 +235,9 @@ int nvram_get_buf(const char *key, char *buf, size_t sz) {
 
 
 int nvram_get_int(const char *key) {
+    if(!init){
+        nvram_init();
+    }
     if (!key) {
         PRINT_MSG("%s\n", "NULL key!");
         return E_FAILURE;

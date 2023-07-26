@@ -7,29 +7,37 @@
 static inline int hc(int magic, void **s,int len) {
     uint64_t eax = magic;
     uint64_t ret = magic;
-    volatile int x = 0;
-    for(int i = 0; i< len; i++){
-        x |= *((int*)s[i]);
+    int y = 0;
+    do{
+        ret = MAGIC_VALUE;
+        volatile int x = 0;
+        for(int i = 0; i< len; i++){
+            x |= *(((int*)s[i])+y);
+        }
+        asm __volatile__(
+        "movq %1, %%rax \t\n\
+        movq %2, %%rdi \t\n\
+        movq %3, %%rsi \t\n\
+        cpuid \t\n\
+        mov %%rax, %0 \t\n\
+        "
+        : "=m" (ret) /* output operand */
+        : "g" (eax), "g" (magic), "g" (len), "g" (s) /* input operands */
+        : "rdi", "rsi", "rdx", "eax" /* clobbered registers */
+        );
+    }while(ret == RETRY);
+    #ifdef CONTROL
+    if(ret & CONTROL == CONTROL){
+        control(ret & CONTROL_MASK);
     }
-    asm __volatile__(
-	"movq %1, %%rax \t\n\
-     movq %2, %%rdi \t\n\
-     movq %3, %%rsi \t\n\
-     cpuid \t\n\
-     mov %%rax, %0 \t\n\
-    "
-	: "=m" (ret) /* output operand */
-	: "g" (eax), "g" (magic), "g" (len), "g" (s) /* input operands */
-	: "rdi", "rsi", "rdx", "eax" /* clobbered registers */
-    );
-
+    #endif
     return ret;
 }
 #elif defined(__i386__) && !defined(__x86_64__)
 static inline int hc(int magic,void **s,int len) {
     int eax = MAGIC_VALUE;
     int ret = MAGIC_VALUE;
-        int y = 0;
+    int y = 0;
     do{
         ret = MAGIC_VALUE;
         volatile int x = 0;
@@ -50,9 +58,11 @@ static inline int hc(int magic,void **s,int len) {
         : "eax", "ebx", "ecx", "edx" /* clobbered registers */
         );
     }while(ret == RETRY);
+    #ifdef CONTROL
     if(ret & CONTROL == CONTROL){
         control(ret & CONTROL_MASK);
     }
+    #endif
     return ret;
 }
 #elif defined(__arm__)
@@ -79,9 +89,11 @@ static inline __attribute__((always_inline)) int hc(int magic,void **s, int len)
       : "r" (r0), "r" (magic), "r" (len), "r" (s), "r" (0) /* input registers */
       : "r0", "r1", "r2", "r3", "r4", "r7" /* clobbered registers */);
     }while(ret == RETRY);
+    #ifdef CONTROL
     if(ret & CONTROL == CONTROL){
         control(ret & CONTROL_MASK);
     }
+    #endif
     return ret;
 }
 #elif defined(__mips64)
@@ -103,7 +115,11 @@ static inline int hc(int magic, void **s, int len) {
     : "r" (r0), "r" (magic), "r" (len), "r" (s)  /* input operands */
     : "a0", "a1", "a2", "a3" /* clobbered registers */
     );
-
+    #ifdef CONTROL
+    if(ret & CONTROL == CONTROL){
+        control(ret & CONTROL_MASK);
+    }
+    #endif
     return ret;
 }
 #elif defined(mips) || defined(__mips__) || defined(__mips)
@@ -131,31 +147,44 @@ static inline int hc(int magic,void  **s,int len) {
         : "a0", "a1", "a2", "a3" /* clobbered registers */
         );
     }while(ret == RETRY);
-
+    #ifdef CONTROL
+    if(ret & CONTROL == CONTROL){
+        control(ret & CONTROL_MASK);
+    }
+    #endif
     return ret;
 }
 #elif defined(__aarch64__)
 static inline __attribute__((always_inline)) int hc(int magic, void **s,int len) {
     unsigned long r0 = MAGIC_VALUE;
     int ret = MAGIC_VALUE;
-    volatile int x = 0;
-    for(int i = 0; i< len; i++){
-        x |= *((int*)s[i]);
+    int y = 0;
+    do{
+        ret = MAGIC_VALUE;
+        volatile int x = 0;
+        for(int i = 0; i< len; i++){
+            x |= *(((int*)s[i])+y);
+        }
+        asm __volatile__("stp x0, x1, [sp, #-16]! \t\n\
+            stp x2, x3, [sp, #-16]! \t\n\
+            mov x8, %1 \t\n\
+            mov x0, %2 \t\n\
+            mov x1, %3 \t\n\
+            mov x2, %4 \t\n\
+            msr S0_0_c5_c0_0, xzr \t\n\
+            mov %0, x0 \t\n\
+            ldp x0, x1, [sp], #16 \t\n\
+            ldp x2, x3, [sp], #16 \t\n"
+        : "=g"(ret) /* no output registers */
+        : "r" (r0), "r" (magic), "r" (len), "r" (s), "r" (0) /* input registers */
+        : "x0", "x1", "x2", "x3", "x4" /* clobbered registers */
+        );
+    }while(ret == RETRY);  
+    #ifdef CONTROL
+    if(ret & CONTROL == CONTROL){
+        control(ret & CONTROL_MASK);
     }
-    asm __volatile__("stp x0, x1, [sp, #-16]! \t\n\
-        stp x2, x3, [sp, #-16]! \t\n\
-        mov x8, %1 \t\n\
-        mov x0, %2 \t\n\
-        mov x1, %3 \t\n\
-        mov x2, %4 \t\n\
-        msr S0_0_c5_c0_0, xzr \t\n\
-        mov %0, x0 \t\n\
-        ldp x0, x1, [sp], #16 \t\n\
-        ldp x2, x3, [sp], #16 \t\n"
-      : "=g"(ret) /* no output registers */
-      : "r" (r0), "r" (magic), "r" (len), "r" (s), "r" (0) /* input registers */
-      : "x0", "x1", "x2", "x3", "x4" /* clobbered registers */
-      );
+    #endif
     return ret;
 }
 #else

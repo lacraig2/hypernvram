@@ -46,7 +46,8 @@ class NVramHC(PyPlugin):
         self.missing = {}
         self.conf = 0
         self.cache = {}
-        self.control_queue = set()
+        self.uncache = set()
+        self.cached = {}
         @panda.cb_guest_hypercall
         def hypercall(cpu):
             magic = panda.arch.get_arg(cpu, 1, convention="syscall")
@@ -94,10 +95,7 @@ class NVramHC(PyPlugin):
                 #TODO commit impl
                 pass
             elif UNSET_CACHE == magic:
-                buf = args[0]
-                result = self.control_queue.pop()
-                self.panda.virtual_memory_write(cpu,buf,result)
-                self.panda.arch.set_retval(cpu,0)
+                self.unset_cache(cpu,args)
             else:
                 print(hex(magic),args)
             return True
@@ -128,6 +126,11 @@ class NVramHC(PyPlugin):
     @PyPlugin.ppp_export
     def add_cache(self,key,conf):
         self.cache[key] = conf
+        self.uncache.pop(key)
+    @PyPlugin.ppp_export
+    def remove_cache(self,key):
+        self.cache.pop(key)
+        self.uncache.append(key)
     '''
     set an int as a config value given to nvram init
     '''
@@ -163,7 +166,7 @@ class NVramHC(PyPlugin):
                     self.panda.virtual_memory_write(cpu,buf,vali.to_bytes(4,'little'))
                     if cache_config := self.cache.get(key, None):
                         self.panda.arch.set_retval(cpu, CACHE | cache_config)
-                    else:
+                    elif self.control(cpu):
                         self.panda.arch.set_retval(cpu, 0)
                 except ValueError:
                     print("retry")
@@ -172,7 +175,8 @@ class NVramHC(PyPlugin):
             if key not in self.missing:
                 print(f"Key {key} not found")
             self.missing[key] = self.missing.get(key,0) +1
-            self.panda.arch.set_retval(cpu, 0, convention='syscall')
+            if self.control(cpu):
+                self.panda.arch.set_retval(cpu, 0, convention='syscall')
          
     def set(self, cpu, args):
         try:
@@ -184,6 +188,7 @@ class NVramHC(PyPlugin):
             return
         if not self.ppp_run_cb("nvram_set",cpu,key,buf):
             self.add_nvram(key,buf)
+        self.control(cpu)
         if self.log:
             with open(self.write_file, "a") as f:
                 f.write(f"\n{self.nvram}\n")
@@ -216,9 +221,7 @@ class NVramHC(PyPlugin):
                 self.panda.virtual_memory_write(cpu, buf,a)
                 if cache_config := self.cache.get(key, None):
                     self.panda.arch.set_retval(cpu, CACHE | cache_config)
-                elif len(self.control_queue) >0:
-                    self.panda.arch.set_retval(cpu, CONTROL | 1,'syscall')
-                else:
+                elif self.control(cpu):
                     self.panda.arch.set_retval(cpu, 0,'syscall')
             except ValueError:
                 print("retry")
@@ -235,7 +238,7 @@ class NVramHC(PyPlugin):
         if self.log:
             with open(self.write_file, "a") as f:
                 f.write(f"\n{self.nvram}\n")
-        if fail == None:
+        if fail == None and self.control(cpu):
             self.panda.arch.set_retval(cpu, 0)
 
     def set_int(self,cpu,args):
@@ -251,7 +254,8 @@ class NVramHC(PyPlugin):
             if self.log:
                 with open(self.write_file, "a") as f:
                     f.write(f"\n{self.nvram}\n")
-            self.panda.arch.set_retval(cpu,self.panda.to_unsigned_guest(vali))
+            if self.control(cpu):
+                self.panda.arch.set_retval(cpu,self.panda.to_unsigned_guest(vali))
     
     def getall(self,cpu,args):
         buf = args[0]
@@ -266,10 +270,19 @@ class NVramHC(PyPlugin):
         if not self.ppp_run_cb("nvram_getall",cpu,buf,sz,b,b[:size+1]):
             try:
                 self.panda.virtual_memory_write(cpu, buf,b[:size+1])
-                self.panda.arch.set_retval(cpu, 1,'syscall')
+                if self.control():
+                    self.panda.arch.set_retval(cpu, 1,'syscall')
             except ValueError:
-                    print("retry")
-                    self.panda.arch.set_retval(cpu, NVRAM_GETALL,'syscall')
+                print("retry")
+                self.panda.arch.set_retval(cpu, NVRAM_GETALL,'syscall')
+    def unset_cache(cpu,args):
+        pid = self.panda.get_current_process(cpu).pid
+        if result := self.cached.get(pid, None):
+            if len(result.intersection(self.uncache)) > 0:
+                key = result.intersection(self.uncache).encode() + b'\0'
+                self.panda.virtual_memory_write(cpu,args[0],key, len(key))
+                self.control(cpu)
+                
     '''Current CALLBACKS
         nvram_block_all(cpu, magic, args)
         nvram_init(cpu)
@@ -291,11 +304,11 @@ class NVramHC(PyPlugin):
         self.ppp_cb_boilerplate("nvram_list_add")
 
     def uninit(self):
-        import ipdb
-        ipdb.set_trace()
-        with open("missing_nvram.txt","w") as f:
-            keys = list(self.missing.keys())
-            sorted(keys, key=lambda x: self.missing[x])
-            for k in keys:
-                f.write(f"{k}: {self.missing[k]} \n")
-        print(f"Missing NVRAM: {self.missing}")
+        print(self.nvram)
+    def control(self,cpu):
+        pid = self.panda.get_current_process(cpu).pid
+        if result := self.cached.get(pid, None):
+            if len(result.intersection(self.uncache)) > 0:
+                self.panda.arch.set_retval(cpu,CONTROL | 1)
+                return False
+        return True
