@@ -101,20 +101,27 @@ static inline int hc(int magic, void **s, int len) {
     unsigned long r0 = MAGIC_VALUE;
     int ret = MAGIC_VALUE;
     volatile  x = 0;
-    for(int i = 0; i< len; i++){
-        x |= *((int*)s[i]);
-    }
-    asm __volatile__(
-    "move $2, %1\t\n"
-    "move $4, %2\t\n"
-    "move $5, %3\t\n"
-    "move $6, %4\t\n"
-    "movz $0, $0, $0\t\n"
-    "move %0, $2\t\n"
-    : "=g"(ret) /* output operand */
-    : "r" (r0), "r" (magic), "r" (len), "r" (s)  /* input operands */
-    : "a0", "a1", "a2", "a3" /* clobbered registers */
-    );
+      int y = 0;
+    do{
+        ret = MAGIC_VALUE;
+        volatile int x = 0;
+        for(int i = 0; i< len; i++){
+            x |= *(((int*)s[i])+y);
+        }
+        y++;
+
+        asm __volatile__(
+        "move $2, %1\t\n"
+        "move $4, %2\t\n"
+        "move $5, %3\t\n"
+        "move $6, %4\t\n"
+        "movz $0, $0, $0\t\n"
+        "move %0, $2\t\n"
+        : "=g"(ret) /* output operand */
+        : "r" (r0), "r" (magic), "r" (len), "r" (s)  /* input operands */
+        : "a0", "a1", "a2", "a3" /* clobbered registers */
+        );
+    }while(ret == RETRY);
     #ifdef CONTROL
     if(ret & CONTROL == CONTROL){
         control(ret & CONTROL_MASK);

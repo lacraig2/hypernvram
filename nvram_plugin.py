@@ -275,7 +275,7 @@ class NVramHC(PyPlugin):
             except ValueError:
                 print("retry")
                 self.panda.arch.set_retval(cpu, NVRAM_GETALL,'syscall')
-    def unset_cache(cpu,args):
+    def unset_cache(self,cpu,args):
         pid = self.panda.get_current_process(cpu).pid
         if result := self.cached.get(pid, None):
             if len(result.intersection(self.uncache)) > 0:
@@ -304,7 +304,8 @@ class NVramHC(PyPlugin):
         self.ppp_cb_boilerplate("nvram_list_add")
 
     def uninit(self):
-        print(self.nvram)
+        #print(self.nvram)
+        pass
     def control(self,cpu):
         pid = self.panda.get_current_process(cpu).pid
         if result := self.cached.get(pid, None):
