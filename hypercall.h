@@ -89,11 +89,13 @@ static inline __attribute__((always_inline)) int hc(int magic,void **s, int len)
       : "r" (r0), "r" (magic), "r" (len), "r" (s), "r" (0) /* input registers */
       : "r0", "r1", "r2", "r3", "r4", "r7" /* clobbered registers */);
     }while(ret == RETRY);
+    /*
     #ifdef CONTROL
     if(ret & CONTROL == CONTROL){
         control(ret & CONTROL_MASK);
     }
     #endif
+    */
     return ret;
 }
 #elif defined(__mips64)
