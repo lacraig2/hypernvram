@@ -85,7 +85,7 @@ typedef struct cache_node{
     struct cache_node* forward;
     struct cache_node* back;
 }cache_node;
-cache_node* get_cached(char* key,int conf);
+cache_node* get_cached(char* key, int conf);
 int delete_cached(char* key);
 void insert_cached_str(char* key, char* val, int conf);
 void insert_cached_int(char* key, int val, int conf);

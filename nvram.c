@@ -51,7 +51,7 @@ static int firmae_nvram = 0;
 static int config;
 static cache_node* cache;
 static cache_node* cache_end;
-static char* (*DEFUALT_GET)(char*,char*) = NULL;
+static char* (*DEFUALT_GET)(char*, char*) = NULL;
 static void firmae_load_env()
 {
     char* env = getenv("FIRMAE_NVRAM");
@@ -69,7 +69,7 @@ int nvram_init(void) {
     }
     init = 1;
     PRINT_MSG("%s\n", "Initializing NVRAM...");
-    config = hc(NVRAM_INIT,NULL,0);
+    config = hc(NVRAM_INIT, NULL, 0);
     if(config & 1){
       DEFUALT_GET = dlsym((void*) -1, "nvram_default_get");
     }
@@ -96,7 +96,7 @@ int nvram_reset(void) {
 
 int nvram_clear(void) {
     PRINT_MSG("%s\n", "Clearing NVRAM...");
-    if(hc(NVRAM_CLEAR,NULL,0)){
+    if(hc(NVRAM_CLEAR, NULL, 0)){
         while(cache != NULL){
             delete_cached(cache->key);
         }
@@ -107,14 +107,14 @@ int nvram_clear(void) {
 
 int nvram_close(void) {
     PRINT_MSG("%s\n", "Closing NVRAM...");
-    hc(NVRAM_CLOSE, NULL,0);
+    hc(NVRAM_CLOSE, NULL, 0);
     return E_SUCCESS;
 }
 
 int nvram_list_add(const char *key, const char *val) {
 
-    void* buffer[2] = {key,val};
-    hc(NVRAM_LIST_ADD,buffer,2);
+    void* buffer[2] = {key, val};
+    hc(NVRAM_LIST_ADD, buffer, 2);
     return *(int*)buffer;
 }
 
@@ -182,7 +182,7 @@ char *nvram_safe_get(const char *key) {
 
 char *nvram_default_get(const char *key, const char *val) {
     if(!init) nvram_init();
-    if(DEFUALT_GET) return (*DEFUALT_GET)(key,val);
+    if(DEFUALT_GET) return (*DEFUALT_GET)(key, val);
     char *ret = nvram_get(key);
 
     PRINT_MSG("%s = %s || %s\n", key, ret, val);
@@ -194,12 +194,11 @@ char *nvram_default_get(const char *key, const char *val) {
     if (val && nvram_set(key, val)) {
         return nvram_get(key);
     }
-
     return NULL;
 }
 
 int nvram_get_buf(const char *key, char *buf, size_t sz) {
-    if(!init){
+    if(!init) {
         nvram_init();
     }
     if (!key) {
@@ -210,40 +209,37 @@ int nvram_get_buf(const char *key, char *buf, size_t sz) {
         PRINT_MSG("NULL output buffer, key: %s!\n", key);
         return E_FAILURE;
     }
-    if(config & 2){
-        cache_node* target = get_cached(key,1);
+    if (config & 2) {
+        cache_node* target = get_cached(key, 1);
         if(target != NULL){
-            strncpy(buf,target->val,sz);
+            strncpy(buf, target->val, sz);
             return E_SUCCESS;
         }
     }
-    void *buffer[3] = {key,buf,&sz};
-    int result = hc(NVRAM_GET_BUF,buffer,3);
-    if (result == NVRAM_GET_BUF){
+    void *buffer[3] = {key, buf, &sz};
+    int result = hc(NVRAM_GET_BUF, buffer, 3);
+    if (result == NVRAM_GET_BUF) {
         PRINT_MSG("%s %s \n", key, "Unable to get key!");
         return E_FAILURE;
     }
-    if (result & CACHE == CACHE)
-    {
-        insert_cached_str(key,buf,result & CONTROL_MASK);
+    if (result & CACHE == CACHE) {
+        insert_cached_str(key, buf, result & CONTROL_MASK);
     }
-    
-    
     return E_SUCCESS;
 }
 
 
 
 int nvram_get_int(const char *key) {
-    if(!init){
+    if(!init) {
         nvram_init();
     }
     if (!key) {
         PRINT_MSG("%s\n", "NULL key!");
         return E_FAILURE;
     }
-    if(config & 2){
-        cache_node* target = get_cached(key,2);
+    if (config & 2) {
+        cache_node* target = get_cached(key, 2);
         if(target != NULL){
             return target->vali;
         }
@@ -251,12 +247,12 @@ int nvram_get_int(const char *key) {
     int temp_int = 0;
     void *buf[2] = {key, &temp_int};
     int result = hc(NVRAM_GET_INT, buf, 2);
-    PRINT_MSG("%s = %d\n", key,temp_int);
+    PRINT_MSG("%s = %d\n", key, temp_int);
     if (result & CACHE == CACHE)
     {
-        insert_cached_int(key,temp_int,result & CONTROL_MASK);
+        insert_cached_int(key, temp_int, result & CONTROL_MASK);
     }
-    PRINT_MSG("%s = %d\n", key,temp_int);
+    PRINT_MSG("%s = %d\n", key, temp_int);
     return temp_int;
 }
 
@@ -272,38 +268,35 @@ int nvram_getall(char *buf, size_t len) {
 }
 
 int nvram_set(const char *key, const char *val) {
-    if (key == NULL || val == NULL)
-    {
+    if (key == NULL || val == NULL) {
         return E_FAILURE;
     }
-    if (config & 2)
-    {
-        cache_node* target = get_cached(key,3);
-        if(target != NULL){
+    if (config & 2) {
+        cache_node* target = get_cached(key, 3);
+        if (target != NULL) {
             return E_SUCCESS;
         }
     }
     
-    void* buffer[2] ={key,val};
-    hc(NVRAM_SET,buffer,2);
+    void* buffer[2] = {key, val};
+    hc(NVRAM_SET, buffer, 2);
     return E_SUCCESS;
 }
 
 int nvram_set_int(const char *key, const int val) {
-    if (key == NULL){
+    if (key == NULL) {
         return E_FAILURE;
     }
-    if (config & 2)
-    {
-        cache_node* target = get_cached(key,3);
-        if(target != NULL){
+    if (config & 2) {
+        cache_node* target = get_cached(key, 3);
+        if (target != NULL) {
             return E_SUCCESS;
         }
     }    
-    char  val_ptr[20];
+    char val_ptr[20];
     snprintf(val_ptr, sizeof(val_ptr)-1, "%d", val);
-    char* buffer[2] = {key,val_ptr};
-    hc(NVRAM_SET_INT,buffer,2);
+    char* buffer[2] = {key, val_ptr};
+    hc(NVRAM_SET_INT, buffer, 2);
     return E_SUCCESS;
 }
 
@@ -347,8 +340,7 @@ int nvram_set_default(void) {
     FILE *file;
     if (firmae_nvram &&
         !access("/firmadyne/nvram_files", R_OK) &&
-        (file = fopen("/firmadyne/nvram_files", "r")))
-    {
+        (file = fopen("/firmadyne/nvram_files", "r"))) {
         char line[256];
         char *nvram_file;
         char *file_type;
@@ -372,8 +364,8 @@ int nvram_set_default(void) {
 
 static int nvram_set_default_builtin(void) {
     int ret = E_SUCCESS;
-    char nvramKeyBuffer[100]="";
-    int index=0;
+    char nvramKeyBuffer[100] = "";
+    int index = 0;
     if (!is_load_env) firmae_load_env();
 
     PRINT_MSG("%s\n", "Setting built-in default values!");
@@ -431,13 +423,13 @@ int nvram_unset(const char *key) {
     }
     if (config & 2)
     {
-        cache_node* target = get_cached(key,3);
-        if(target != NULL){
+        cache_node* target = get_cached(key, 3);
+        if (target != NULL){
             return E_SUCCESS;
         }
     }    
-    int ret = hc(NVRAM_UNSET,&key,1);
-    PRINT_MSG("= %d\n",ret);
+    int ret = hc(NVRAM_UNSET, &key, 1);
+    PRINT_MSG("= %d\n", ret);
     return ret;
 }
 
@@ -484,7 +476,7 @@ int nvram_invmatch(const char *key, const char *val) {
 }
 
 int nvram_commit(void) {
-    hc(NVRAM_COMMIT,NULL,0); 
+    hc(NVRAM_COMMIT, NULL, 0); 
     return E_SUCCESS;
 }
 
@@ -511,44 +503,40 @@ int parse_nvram_from_file(const char *file)
 
     /* split the buffer including NULL byte */
     #define LEN 1024
-    int i=0,j=0,k=0; int left = 1;
-    char *key="", *val="";
-    char larr[LEN]="", rarr[LEN]="";
+    int i = 0, j = 0, k = 0; int left = 1;
+    char *key = "", *val = "";
+    char larr[LEN] = "", rarr[LEN] = "";
 
-    for(i=0; i < fileLen; i++)
-    {
+    for(i=0; i < fileLen; i++) {
         char tmp[4];
-        sprintf(tmp, "%c", *(buffer+i));
+        sprintf(tmp, "%c", *(buffer + i));
 
         if (left==1 && j<LEN)
             larr[j++] = tmp[0];
-        else if(left==0 && k<LEN)
+        else if (left == 0 && k < LEN)
             rarr[k++] = tmp[0];
 
-        if(!memcmp(tmp,"=",1)){
-            left=0;
-            larr[j-1]='\0';
+        if(!memcmp(tmp, "=", 1)){
+            left = 0;
+            larr[j - 1] = '\0';
         }
-        if (!memcmp(tmp,"\x00",1)){
+        if (!memcmp(tmp,"\x00",1)) {
             key = larr; val = rarr;
             nvram_set(key, val);
-            j=0; k=0; left=1;
+            j = 0; k = 0; left = 1;
             memset(larr, 0, LEN); memset(rarr, 0, LEN);
         }
     }
     return E_SUCCESS;
 }
 cache_node* get_cached(char* key,int conf){
-    if (cache == NULL || key == NULL)
-    {
+    if (cache == NULL || key == NULL) {
         return NULL;
     }
     cache_node* current = cache;
-    while (current != NULL)
-    {
-        if (strncmp(key,current->key, 0x1000) == 0)
-        {
-            if(current->conf & conf){
+    while (current != NULL) {
+        if (strncmp(key, current->key, 0x1000) == 0) {
+            if (current->conf & conf) {
                 break;
             }
             current = NULL;
@@ -560,28 +548,25 @@ cache_node* get_cached(char* key,int conf){
 }
 int delete_cached(char* key){
     cache_node* target = get_cached(key, 3);
-    if (target == NULL)
-    {
+    if (target == NULL) {
         return E_FAILURE;
     }
-    if(target == cache_end){
+    if (target == cache_end) {
         cache_end = target->back;
     }
-    if (target == cache)
-    {
+    if (target == cache) {
         cache = target->forward;
     }
-    if (target->forward != NULL && target->back != NULL)
-    {
+    if (target->forward != NULL && target->back != NULL) {
         target->back->forward = target->forward;
         target->forward->back = target->back;
-    }else if(target->forward != NULL){
+    } else if (target->forward != NULL) {
         target->forward->back = NULL;
-    }else if(target->back != NULL){
+    } else if (target->back != NULL) {
         target->back->forward = NULL;
     }
     free(target->key);
-    if (target->val){
+    if (target->val) {
         free(target->val);
     }
     free(target);
@@ -589,18 +574,16 @@ int delete_cached(char* key){
 }
 cache_node* create_cache(char* key){
     cache_node* target;
-    if (cache == NULL)
-    {
+    if (cache == NULL) {
         cache = malloc(sizeof(cache_node));
-        cache->key = strndup(key,BUFFER_SIZE);
+        cache->key = strndup(key, BUFFER_SIZE);
         cache_end = cache;
         target = cache;
-    }else{
+    } else {
         target = get_cached(key, 3);
-        if (target == NULL)
-        {
+        if (target == NULL) {
             target = malloc(sizeof(cache_node));
-            target->key = strndup(key,BUFFER_SIZE);
+            target->key = strndup(key, BUFFER_SIZE);
             cache_end->forward = target;
             target->back = cache_end;
             cache_end = target;
@@ -617,14 +600,14 @@ void insert_cached_str(char* key, char* val, int conf){
 void insert_cached_int(char* key, int val, int conf){
     cache_node* target = create_cache(key);
     target->vali = val;
-    target->conf |= conf |2;   
+    target->conf |= conf | 2;   
 }
 void control(int c){
     if(c & 1){
         int sz = BUFFER_SIZE;
         char* key = malloc(sz);
-        void** buf = {key,&sz};
-        int result = hc(UNSET_CACHE,buf,2);
+        void** buf = {key, &sz};
+        int result = hc(UNSET_CACHE, buf, 2);
         delete_cached(key);
         free(key);        
     }
