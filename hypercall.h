@@ -11,7 +11,7 @@ static inline int hc(int hc_type, void **s,int len) {
     do {
         ret = MAGIC_VALUE;
         volatile int x = 0;
-        for(int i = 0; i< len; i++){
+        for(int i = 0; i< len; i++) {
             x |= *(((int*)s[i])+y);
         }
         asm __volatile__(
@@ -40,7 +40,7 @@ static inline int hc(int hc_type,void **s,int len) {
     do {
         ret = MAGIC_VALUE;
         volatile int x = 0;
-        for(int i = 0; i< len; i++){
+        for(int i = 0; i< len; i++) {
             x |= *(((int*)s[i])+y);
         }
         y++;
@@ -70,7 +70,7 @@ static inline __attribute__((always_inline)) int hc(int hc_type, void **s, int l
     do {
         ret = MAGIC_VALUE;
         volatile int x = 0;
-        for (int i = 0; i < len; i++){
+        for (int i = 0; i < len; i++) {
             x |= *(((int*) s[i]) + y);
         }
         y++;
@@ -101,7 +101,7 @@ static inline int hc(int hc_type, void **s, int len) {
     do {
         ret = MAGIC_VALUE;
         volatile int x = 0;
-        for(int i = 0; i < len; i++){
+        for(int i = 0; i < len; i++) {
             x |= *(((int*)s[i]) + y);
         }
         y++;
@@ -133,7 +133,7 @@ static inline int hc(int hc_type,void  **s,int len) {
         ret = MAGIC_VALUE;
         volatile int x = 0;
         y++;
-        for(int i = 0; i < len; i++){
+        for(int i = 0; i < len; i++) {
             x |= *(((int*) s[i]) + y);
         }
         
@@ -163,7 +163,7 @@ static inline __attribute__((always_inline)) int hc(int hc_type, void **s,int le
     do {
         ret = MAGIC_VALUE;
         volatile int x = 0;
-        for(int i = 0; i < len; i++){
+        for(int i = 0; i < len; i++) {
             x |= *(((int*) s[i]) + y);
         }
         asm __volatile__("stp x0, x1, [sp, #-16]! \t\n\

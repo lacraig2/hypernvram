@@ -51,7 +51,7 @@ static int firmae_nvram = 0;
 static int config;
 static cache_node* cache;
 static cache_node* cache_end;
-static char* (*DEFUALT_GET)(char*, char*) = NULL;
+static char* (*DEFAULT_GET)(char*, char*) = NULL;
 static void firmae_load_env()
 {
     char* env = getenv("FIRMAE_NVRAM");
@@ -70,8 +70,8 @@ int nvram_init(void) {
     init = 1;
     PRINT_MSG("%s\n", "Initializing NVRAM...");
     config = hc(NVRAM_INIT, NULL, 0);
-    if(config & 1){
-      DEFUALT_GET = dlsym((void*) -1, "nvram_default_get");
+    if (config & 1) {
+      DEFAULT_GET = dlsym((void*) -1, "nvram_default_get");
     }
     // Checked by certain Ralink routers
     if ((f = fopen("/var/run/nvramd.pid", "w+")) == NULL) {
@@ -96,8 +96,8 @@ int nvram_reset(void) {
 
 int nvram_clear(void) {
     PRINT_MSG("%s\n", "Clearing NVRAM...");
-    if(hc(NVRAM_CLEAR, NULL, 0)){
-        while(cache != NULL){
+    if (hc(NVRAM_CLEAR, NULL, 0)) {
+        while(cache != NULL) {
             delete_cached(cache->key);
         }
     }
@@ -181,8 +181,8 @@ char *nvram_safe_get(const char *key) {
 }
 
 char *nvram_default_get(const char *key, const char *val) {
-    if(!init) nvram_init();
-    if(DEFUALT_GET) return (*DEFUALT_GET)(key, val);
+    if (!init) nvram_init();
+    if (DEFAULT_GET) return (*DEFAULT_GET)(key, val);
     char *ret = nvram_get(key);
 
     PRINT_MSG("%s = %s || %s\n", key, ret, val);
@@ -198,7 +198,7 @@ char *nvram_default_get(const char *key, const char *val) {
 }
 
 int nvram_get_buf(const char *key, char *buf, size_t sz) {
-    if(!init) {
+    if (!init) {
         nvram_init();
     }
     if (!key) {
@@ -211,7 +211,7 @@ int nvram_get_buf(const char *key, char *buf, size_t sz) {
     }
     if (config & 2) {
         cache_node* target = get_cached(key, 1);
-        if(target != NULL){
+        if (target != NULL) {
             strncpy(buf, target->val, sz);
             return E_SUCCESS;
         }
@@ -231,7 +231,7 @@ int nvram_get_buf(const char *key, char *buf, size_t sz) {
 
 
 int nvram_get_int(const char *key) {
-    if(!init) {
+    if (!init) {
         nvram_init();
     }
     if (!key) {
@@ -240,7 +240,7 @@ int nvram_get_int(const char *key) {
     }
     if (config & 2) {
         cache_node* target = get_cached(key, 2);
-        if(target != NULL){
+        if (target != NULL) {
             return target->vali;
         }
     }
@@ -424,7 +424,7 @@ int nvram_unset(const char *key) {
     if (config & 2)
     {
         cache_node* target = get_cached(key, 3);
-        if (target != NULL){
+        if (target != NULL) {
             return E_SUCCESS;
         }
     }    
@@ -486,7 +486,7 @@ int parse_nvram_from_file(const char *file)
     char *buffer;
     int fileLen=0;
 
-    if((f = fopen(file, "rb")) == NULL){
+    if ((f = fopen(file, "rb")) == NULL) {
         PRINT_MSG("Unable to open file: %s!\n", file);
         return E_FAILURE;
     }
@@ -516,7 +516,7 @@ int parse_nvram_from_file(const char *file)
         else if (left == 0 && k < LEN)
             rarr[k++] = tmp[0];
 
-        if(!memcmp(tmp, "=", 1)){
+        if (!memcmp(tmp, "=", 1)) {
             left = 0;
             larr[j - 1] = '\0';
         }
@@ -529,7 +529,7 @@ int parse_nvram_from_file(const char *file)
     }
     return E_SUCCESS;
 }
-cache_node* get_cached(char* key,int conf){
+cache_node* get_cached(char* key,int conf) {
     if (cache == NULL || key == NULL) {
         return NULL;
     }
@@ -546,7 +546,7 @@ cache_node* get_cached(char* key,int conf){
     }
     return current;
 }
-int delete_cached(char* key){
+int delete_cached(char* key) {
     cache_node* target = get_cached(key, 3);
     if (target == NULL) {
         return E_FAILURE;
@@ -572,7 +572,7 @@ int delete_cached(char* key){
     free(target);
     return E_SUCCESS;
 }
-cache_node* create_cache(char* key){
+cache_node* create_cache(char* key) {
     cache_node* target;
     if (cache == NULL) {
         cache = malloc(sizeof(cache_node));
@@ -592,18 +592,18 @@ cache_node* create_cache(char* key){
     }
     return target;
 }
-void insert_cached_str(char* key, char* val, int conf){
+void insert_cached_str(char* key, char* val, int conf) {
     cache_node* target = create_cache(key);
     target->val = strndup(val,BUFFER_SIZE);
     target->conf |= conf |1;   
 }
-void insert_cached_int(char* key, int val, int conf){
+void insert_cached_int(char* key, int val, int conf) {
     cache_node* target = create_cache(key);
     target->vali = val;
     target->conf |= conf | 2;   
 }
-void control(int c){
-    if(c & 1){
+void control(int c) {
+    if (c & 1) {
         int sz = BUFFER_SIZE;
         char* key = malloc(sz);
         void** buf = {key, &sz};
@@ -615,7 +615,7 @@ void control(int c){
 
 #ifdef FIRMAE_KERNEL
 //DIR-615I2, DIR-615I3, DIR-825C1 patch
-int VCTGetPortAutoNegSetting(char *a1, int a2){
+int VCTGetPortAutoNegSetting(char *a1, int a2) {
     PRINT_MSG("%s\n", "Dealing wth ioctl ...");
     return 0;
 }
