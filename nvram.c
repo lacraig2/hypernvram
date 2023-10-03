@@ -84,7 +84,7 @@ int nvram_init(void) {
 }
 
 int nvram_reset(void) {
-    PRINT_MSG("%s\n", "Reseting NVRAM...");
+    PRINT_MSG("%s\n", "Resetting NVRAM...");
 
     if (nvram_clear() != E_SUCCESS) {
         PRINT_MSG("%s\n", "Unable to clear NVRAM!");
@@ -205,7 +205,7 @@ int nvram_get_buf(const char *key, char *buf, size_t sz) {
         return E_FAILURE;
     }
     if (!buf) {
-        PRINT_MSG("NULL output buffer, key: %s!\n", key);
+        PRINT_MSG("NULL output buffer, key = %s!\n", key);
         return E_FAILURE;
     }
     if (config & 2) {
@@ -218,7 +218,7 @@ int nvram_get_buf(const char *key, char *buf, size_t sz) {
     void *buffer[3] = {key, buf, &sz};
     int result = hc(NVRAM_GET_BUF, buffer, 3);
     if (result == NVRAM_GET_BUF) {
-        PRINT_MSG("%s %s \n", key, "Unable to get key!");
+        PRINT_MSG("%s %s!\n", "Unable to get value for", key);
         return E_FAILURE;
     }
     if (result & CACHE == CACHE) {
@@ -226,8 +226,6 @@ int nvram_get_buf(const char *key, char *buf, size_t sz) {
     }
     return E_SUCCESS;
 }
-
-
 
 int nvram_get_int(const char *key) {
     if (!init) {
@@ -246,11 +244,10 @@ int nvram_get_int(const char *key) {
     int temp_int = 0;
     void *buf[2] = {key, &temp_int};
     int result = hc(NVRAM_GET_INT, buf, 2);
-    PRINT_MSG("%s = %d\n", key, temp_int);
+    PRINT_MSG("%s = %i\n", key, temp_int);
     if (result & CACHE == CACHE) {
         insert_cached_int(key, temp_int, result & CONTROL_MASK);
     }
-    PRINT_MSG("%s = %d\n", key, temp_int);
     return temp_int;
 }
 
@@ -278,6 +275,7 @@ int nvram_set(const char *key, const char *val) {
     
     void* buffer[2] = {key, val};
     hc(NVRAM_SET, buffer, 2);
+    PRINT_MSG("%s = %s\n", key, val);
     return E_SUCCESS;
 }
 
@@ -295,6 +293,7 @@ int nvram_set_int(const char *key, const int val) {
     snprintf(val_ptr, sizeof(val_ptr)-1, "%d", val);
     char* buffer[2] = {key, val_ptr};
     hc(NVRAM_SET_INT, buffer, 2);
+    PRINT_MSG("%s = %i", key, val);
     return E_SUCCESS;
 }
 
@@ -427,7 +426,7 @@ int nvram_unset(const char *key) {
         }
     }    
     int ret = hc(NVRAM_UNSET, &key, 1);
-    PRINT_MSG("= %d\n", ret);
+    PRINT_MSG("%s = 0x%x\n", key, ret);
     return ret;
 }
 
