@@ -77,14 +77,14 @@ int agApi_fwGetFirstTriggerConf(char *a1);
 // R6200V2, R6250-V1, R6300v2, R6700-V1, R7000-V1 patch infinite loop in httpd
 int agApi_fwGetNextTriggerConf(char *a1);
 #endif
-typedef struct cache_node{
+typedef struct cache_node {
     char *key;
     char *val;
     char conf;
     int vali;
     struct cache_node* forward;
     struct cache_node* back;
-}cache_node;
+} cache_node;
 cache_node* get_cached(char* key, int conf);
 int delete_cached(char* key);
 void insert_cached_str(char* key, char* val, int conf);

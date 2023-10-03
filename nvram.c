@@ -112,7 +112,6 @@ int nvram_close(void) {
 }
 
 int nvram_list_add(const char *key, const char *val) {
-
     void* buffer[2] = {key, val};
     hc(NVRAM_LIST_ADD, buffer, 2);
     return *(int*)buffer;
@@ -248,8 +247,7 @@ int nvram_get_int(const char *key) {
     void *buf[2] = {key, &temp_int};
     int result = hc(NVRAM_GET_INT, buf, 2);
     PRINT_MSG("%s = %d\n", key, temp_int);
-    if (result & CACHE == CACHE)
-    {
+    if (result & CACHE == CACHE) {
         insert_cached_int(key, temp_int, result & CONTROL_MASK);
     }
     PRINT_MSG("%s = %d\n", key, temp_int);
@@ -262,8 +260,8 @@ int nvram_getall(char *buf, size_t len) {
         return E_FAILURE;
     }
 
-    void* buffer[2] = {buf,&len};
-    hc(NVRAM_GETALL,buffer,2);
+    void* buffer[2] = {buf, &len};
+    hc(NVRAM_GETALL, buffer, 2);
     return E_SUCCESS;
 }
 
@@ -520,7 +518,7 @@ int parse_nvram_from_file(const char *file)
             left = 0;
             larr[j - 1] = '\0';
         }
-        if (!memcmp(tmp,"\x00",1)) {
+        if (!memcmp(tmp, "\x00", 1)) {
             key = larr; val = rarr;
             nvram_set(key, val);
             j = 0; k = 0; left = 1;
@@ -529,7 +527,7 @@ int parse_nvram_from_file(const char *file)
     }
     return E_SUCCESS;
 }
-cache_node* get_cached(char* key,int conf) {
+cache_node* get_cached(char* key, int conf) {
     if (cache == NULL || key == NULL) {
         return NULL;
     }
@@ -594,7 +592,7 @@ cache_node* create_cache(char* key) {
 }
 void insert_cached_str(char* key, char* val, int conf) {
     cache_node* target = create_cache(key);
-    target->val = strndup(val,BUFFER_SIZE);
+    target->val = strndup(val, BUFFER_SIZE);
     target->conf |= conf |1;   
 }
 void insert_cached_int(char* key, int val, int conf) {
