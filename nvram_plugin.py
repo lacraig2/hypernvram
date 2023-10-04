@@ -65,7 +65,7 @@ class NVRAM_Hypercall(PyPlugin):
             try:
                 argv =  panda.virtual_memory_read(cpu, argptr, pointer_size * length, fmt="ptrlist")
             except ValueError:
-                print("retry") 
+                print("RETRY NVRAM argv virt.mem.read") 
                 panda.arch.set_retval(cpu, self.panda.to_unsigned_guest(RETRY))
                 return True
             panda.arch.set_retval(cpu, MAGIC_VALUE)
@@ -157,7 +157,7 @@ class NVRAM_Hypercall(PyPlugin):
         try:
             key = self.panda.read_str(cpu, argv[0])
         except ValueError:
-            print("retry")
+            print("RETRY NVRAM_GET_INT")
             self.panda.arch.set_retval(cpu, RETRY)
             return
         buf = argv[1]
@@ -176,7 +176,7 @@ class NVRAM_Hypercall(PyPlugin):
                     elif self.control(cpu):
                         self.panda.arch.set_retval(cpu, 0)
                 except ValueError:
-                    print("retry")
+                    print("RETRY NVRAM_GET_INT")
                     self.panda.arch.set_retval(cpu, RETRY)
         else:
             if key not in self.missing:
@@ -190,7 +190,7 @@ class NVRAM_Hypercall(PyPlugin):
             key = self.panda.read_str(cpu, argv[0])
             buf = self.panda.read_str(cpu, argv[1])
         except ValueError:
-            print("retry")
+            print("RETRY NVRAM_SET")
             self.panda.arch.set_retval(cpu, RETRY)
             return
         if not self.ppp_run_cb("nvram_set", cpu, key, buf):
@@ -205,7 +205,7 @@ class NVRAM_Hypercall(PyPlugin):
             key = self.panda.read_str(cpu, argv[0])
             sz = int.from_bytes(self.panda.virtual_memory_read(cpu, argv[2], self.panda.bits // 8), 'little')
         except ValueError:
-            print("retry")
+            print("RETRY NVRAM_GET_BUF")
             self.panda.arch.set_retval(cpu, RETRY)
             return
         if "ipdb" in key:
@@ -231,14 +231,14 @@ class NVRAM_Hypercall(PyPlugin):
                 elif self.control(cpu):
                     self.panda.arch.set_retval(cpu, 0, 'syscall')
             except ValueError:
-                print("retry")
+                print("RETRY NVRAM_GET_BUF")
                 self.panda.arch.set_retval(cpu, RETRY, 'syscall') 
 
     def unset(self, cpu, argv):
         try:
             key = self.panda.read_str(cpu, argv[0])
         except ValueError:
-            print("retry")
+            print("RETRY NVRAM_UNSET")
             self.panda.arch.set_retval(cpu, RETRY)
             return
         fail =  self.nvram.pop(key, None)
@@ -253,7 +253,7 @@ class NVRAM_Hypercall(PyPlugin):
             key = self.panda.read_str(cpu, argv[0])
             vali = int.from_bytes(self.panda.virtual_memory_read(cpu, argv[1], self.panda.bits // 8), 'little')
         except ValueError:
-            print("retry")
+            print("RETRY NVRAM_SET_INT")
             self.panda.arch.set_retval(cpu, RETRY)
             return
         if not self.ppp_run_cb("nvram_set_int", cpu, key, vali):
@@ -269,7 +269,7 @@ class NVRAM_Hypercall(PyPlugin):
         try:
             sz = int.from_bytes(self.panda.virtual_memory_read(cpu, argv[1], self.panda.bits // 8), 'little')
         except ValueError:
-            print("retry")
+            print("RETRY NVRAM_GETALL")
             self.panda.arch.set_retval(cpu, RETRY)
             return
         b = self.nvram_byte_str()
@@ -280,7 +280,7 @@ class NVRAM_Hypercall(PyPlugin):
                 if self.control():
                     self.panda.arch.set_retval(cpu, 1, 'syscall')
             except ValueError:
-                print("retry")
+                print("RETRY NVRAM_GETALL")
                 self.panda.arch.set_retval(cpu, NVRAM_GETALL, 'syscall')
     
     def unset_cache(self, cpu, argv):
