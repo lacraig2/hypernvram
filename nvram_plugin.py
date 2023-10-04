@@ -60,7 +60,7 @@ class NVRAM_Hypercall(PyPlugin):
             length = panda.arch.get_arg(cpu, 3, convention='syscall')
             pointer_size = panda.bits // 8
             if magic != MAGIC_VALUE:
-                print(f"Found hypercall, but value was {hex(hc_type)}")
+                print(f"Found hypercall, but magic value was {hex(magic)} and hc_type was {hex(hc_type)}")
                 return False
             try:
                 argv =  panda.virtual_memory_read(cpu, argptr, pointer_size * length, fmt="ptrlist")
