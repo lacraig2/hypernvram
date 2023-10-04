@@ -37,7 +37,7 @@
 // https://lkml.org/lkml/2007/3/9/10
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]) + sizeof(typeof(int[1 - 2 * !!__builtin_types_compatible_p(typeof(arr), typeof(&arr[0]))])) * 0)
 
-#define PRINT_MSG(fmt, ...) do { if (DEBUG) { fprintf(stderr, "%s: "fmt, __FUNCTION__, __VA_ARGS__); } } while (0)
+#define PRINT_MSG(fmt, ...) if (DEBUG) { fprintf(stderr, "%s: "fmt, __FUNCTION__, __VA_ARGS__); }
 
 /* Weak symbol definitions for library functions that may not be present */
 __typeof__(ftok) __attribute__((weak)) ftok;
@@ -170,7 +170,7 @@ char *nvram_get(const char *key) {
         asm ("move %0, $a1" :"=r"(key));
     }
 #endif
-
+    PRINT_MSG("%s", " -> ");
     return (nvram_get_buf(key, temp, BUFFER_SIZE) == E_SUCCESS) ? strndup(temp, BUFFER_SIZE) : NULL;
 }
 
