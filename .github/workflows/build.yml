@@ -20,5 +20,5 @@ jobs:
       - name: Save package
         uses: actions/upload-artifact@v3
         with:
-          name: example_package
-          path: example
+          name: hypernvram
+          path: build
