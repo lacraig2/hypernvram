@@ -27,7 +27,7 @@
 #define TABLE(a) \
     extern const char *a[] __attribute__((weak));
 
-    NVRAM_DEFAULTS_PATH
+NVRAM_DEFAULTS_PATH
 #undef TABLE
 #undef FIRMAE_PATH2
 #undef FIRMAE_PATH
@@ -170,6 +170,7 @@ char *nvram_get(const char *key) {
         asm ("move %0, $a1" :"=r"(key));
     }
 #endif
+    //fprintf("nvram_get -> ");
     PRINT_MSG("%s", "-> ");
     return (nvram_get_buf(key, temp, BUFFER_SIZE) == E_SUCCESS) ? strndup(temp, BUFFER_SIZE) : NULL;
 }
@@ -224,6 +225,7 @@ int nvram_get_buf(const char *key, char *buf, size_t sz) {
     if (result & CACHE == CACHE) {
         insert_cached_str(key, buf, result & CONTROL_MASK);
     }
+    PRINT_MSG("key = \"%s\", val = \"%s\"\n", key, buf);
     return E_SUCCESS;
 }
 
@@ -244,7 +246,7 @@ int nvram_get_int(const char *key) {
     int temp_int = 0;
     void *buf[2] = {key, &temp_int};
     int result = hc(NVRAM_GET_INT, buf, 2);
-    PRINT_MSG("%s = %i\n", key, temp_int);
+    PRINT_MSG("key = \"%s\", val = \"%i\"\n", key, temp_int);
     if (result & CACHE == CACHE) {
         insert_cached_int(key, temp_int, result & CONTROL_MASK);
     }
@@ -275,7 +277,7 @@ int nvram_set(const char *key, const char *val) {
     
     void* buffer[2] = {key, val};
     hc(NVRAM_SET, buffer, 2);
-    PRINT_MSG("%s = %s\n", key, val);
+    PRINT_MSG("key = \"%s\", val = \"%s\"\n", key, val);
     return E_SUCCESS;
 }
 
@@ -293,7 +295,7 @@ int nvram_set_int(const char *key, const int val) {
     snprintf(val_ptr, sizeof(val_ptr)-1, "%d", val);
     char* buffer[2] = {key, val_ptr};
     hc(NVRAM_SET_INT, buffer, 2);
-    PRINT_MSG("%s = %i", key, val);
+    PRINT_MSG("key = \"%s\", val = \"%i\"\n", key, val);
     return E_SUCCESS;
 }
 
@@ -426,7 +428,7 @@ int nvram_unset(const char *key) {
         }
     }    
     int ret = hc(NVRAM_UNSET, &key, 1);
-    PRINT_MSG("%s = 0x%x\n", key, ret);
+    PRINT_MSG("key = \"%s\", val = \"0x%x\"\n", key, ret);
     return ret;
 }
 
