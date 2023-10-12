@@ -1,9 +1,8 @@
-
 from pandare import PyPlugin, Panda
 import ipaddress
 import socket
 import os
-
+import ipdb
 '''
 Interface to LibNvram Hypercalls.
 
@@ -28,12 +27,14 @@ NVRAM_COMMIT = 0x3183818a
 ERROR_VAL = 0x12345678
 CACHE = 0xCA000000
 CONTROL = 0xCE000000
-UNSET_CACHE = 0x31838170
-
+UNSET_CACHE = 0x31838170  
+MAGIC_DICT = {MAGIC_VALUE:"MAGIC_VALUE", NVRAM_CLOSE:"NVRAM_CLOSE", NVRAM_INIT:"NVRAM_INIT", NVRAM_CLEAR:"NVRAM_CLEAR", NVRAM_LIST_ADD:"NVRAM_LIST_ADD", 
+              NVRAM_GET_BUF:"NVRAM_GET_BUF", NVRAM_GET_INT:"NVRAM_GET_INT", NVRAM_GETALL:"NVRAM_GETALL", NVRAM_SET:"NVRAM_SET", NVRAM_SET_INT:"NVRAM_SET_INT", 
+              NVRAM_UNSET:"NVRAM_UNSET", NVRAM_COMMIT:"NVRAM_COMMIT", ERROR_VAL:"ERROR_VAL", CACHE:"CACHE", CONTROL:"CONTROL", UNSET_CACHE:"UNSET_CACHE"}
 
 class NVRAM_Hypercall(PyPlugin):
     def __init__(self, panda: Panda):
-        print("Loading NVRAM_Hypercall plugin")
+        print("Loading NVRAM_HyperCall plugin")
         super().__init__(panda)
         self.panda = panda
         outdir = self.get_arg("outdir")
@@ -41,7 +42,7 @@ class NVRAM_Hypercall(PyPlugin):
         self.write_file = None
         if self.log:
             self.write_file = os.path.join(outdir,"nvram.log")
-            open(self.write_file, "w").close() # Clear the file
+            open(self.write_file, "w").close() #Clear the file
         self.nvram:dict = self.get_arg("nvram")
         if self.nvram is None:
             self.nvram = {}
@@ -58,23 +59,27 @@ class NVRAM_Hypercall(PyPlugin):
             hc_type = panda.arch.get_arg(cpu, 1, convention="syscall")
             argptr =  panda.arch.get_arg(cpu, 2, convention='syscall')
             length = panda.arch.get_arg(cpu, 3, convention='syscall')
-            pointer_size = panda.bits // 8
-            if magic != MAGIC_VALUE:
+            pointer_size = panda.bits // 8       
+            if hc_type not in MAGIC_DICT.keys() and magic not in MAGIC_DICT.keys():
                 print(f"Found hypercall, but magic value was {hex(magic)} and hc_type was {hex(hc_type)}")
                 return False
             try:
                 argv =  panda.virtual_memory_read(cpu, argptr, pointer_size * length, fmt="ptrlist")
             except ValueError:
-                print("RETRY NVRAM argv virt.mem.read") 
+                print("RETRY NVRAM ARGV VIRTUAL MEMORY READ")
                 panda.arch.set_retval(cpu, self.panda.to_unsigned_guest(RETRY))
                 return True
             panda.arch.set_retval(cpu, MAGIC_VALUE)
             if self.log:
                 with open(self.write_file, "a") as f:
-                    f.write(f"\n{hc_type:x} {argv}\n")
-            block = self.ppp_run_cb("nvram_block_all", cpu, hc_type, argv)
+                    f.write(f"{MAGIC_DICT[hc_type]}: ")
+            try:
+                block = self.ppp_run_cb("nvram_block_all", cpu, hc_type, argv)
+            except:
+                block = None
             if block:
                 return True
+            
             if hc_type == NVRAM_GET_INT:
                 self.get_int(cpu, argv)
             elif hc_type == NVRAM_GET_BUF:
@@ -96,6 +101,9 @@ class NVRAM_Hypercall(PyPlugin):
             elif hc_type == NVRAM_INIT:
                 if not self.ppp_run_cb("nvram_init", cpu):
                     self.panda.arch.set_retval(cpu, self.conf)
+                    if self.log:
+                        with open(self.write_file, "a") as f:
+                            f.write("\n")
             elif hc_type == NVRAM_COMMIT:
                 #TODO commit impl
                 pass
@@ -104,10 +112,8 @@ class NVRAM_Hypercall(PyPlugin):
             else:
                 print(hex(hc_type), argv)
             return True
-    
-    # Calling convention for exported functions: panda.pyplugins.ppp.NVRAM_Hypercall.{func_name}(func_params)
     '''
-    creates a copy of current nvram dictionary 
+    Creates a copy of current nvram dictionary 
     '''
     @PyPlugin.ppp_export
     def get_nvram(self):
@@ -139,7 +145,7 @@ class NVRAM_Hypercall(PyPlugin):
         self.cache.pop(key)
         self.uncache.append(key)
     '''
-    set an int as a config value given to nvram init
+    Set an int as a config value given to nvram init
     '''
     @PyPlugin.ppp_export
     def set_conf(self, conf):
@@ -161,6 +167,9 @@ class NVRAM_Hypercall(PyPlugin):
             self.panda.arch.set_retval(cpu, RETRY)
             return
         buf = argv[1]
+        if self.log:
+            with open(self.write_file, "a") as f:
+                f.write(f"key = \"{key}\", val = \"{buf}\"\n")
         if result := self.nvram.get(key, None):
             numstr = result.decode().strip('\x00')
             try:
@@ -176,7 +185,7 @@ class NVRAM_Hypercall(PyPlugin):
                     elif self.control(cpu):
                         self.panda.arch.set_retval(cpu, 0)
                 except ValueError:
-                    print("RETRY NVRAM_GET_INT")
+                    print("retry")
                     self.panda.arch.set_retval(cpu, RETRY)
         else:
             if key not in self.missing:
@@ -198,7 +207,7 @@ class NVRAM_Hypercall(PyPlugin):
         self.control(cpu)
         if self.log:
             with open(self.write_file, "a") as f:
-                f.write(f"\n{self.nvram}\n")
+                f.write(f"key = \"{key}\", val = \"{buf}\"\n")
         
     def get_buf(self, cpu, argv):
         try:
@@ -209,10 +218,13 @@ class NVRAM_Hypercall(PyPlugin):
             self.panda.arch.set_retval(cpu, RETRY)
             return
         if "ipdb" in key:
-            import ipdb;ipdb.set_trace()
+            ipdb.set_trace()
         buf = argv[1]
+        if self.log:
+            with open(self.write_file, "a") as f:
+                f.write(f"key = \"{key}\", val = \"{self.panda.read_str(cpu, buf)}\"\n")
         b = self.nvram.get(key, None)
-        if b == None :
+        if b == None:
             if not self.ppp_run_cb("nvram_get", cpu, key, buf, sz, None, None):
                 self.panda.arch.set_retval(cpu, NVRAM_GET_BUF, 'syscall')
             if key not in self.missing:
@@ -233,7 +245,7 @@ class NVRAM_Hypercall(PyPlugin):
             except ValueError:
                 print("RETRY NVRAM_GET_BUF")
                 self.panda.arch.set_retval(cpu, RETRY, 'syscall') 
-
+        
     def unset(self, cpu, argv):
         try:
             key = self.panda.read_str(cpu, argv[0])
@@ -244,13 +256,13 @@ class NVRAM_Hypercall(PyPlugin):
         fail =  self.nvram.pop(key, None)
         if self.log:
             with open(self.write_file, "a") as f:
-                f.write(f"\n{self.nvram}\n")
+                f.write(f"key = \"{key}\", val = \"0x0\"\n")
         if fail == None and self.control(cpu):
             self.panda.arch.set_retval(cpu, 0)
 
     def set_int(self, cpu, argv):
         try:
-            key = self.panda.read_str(cpu, argv[0])
+            key = self.panda.read_str(cpu, argv[0])        
             vali = int.from_bytes(self.panda.virtual_memory_read(cpu, argv[1], self.panda.bits // 8), 'little')
         except ValueError:
             print("RETRY NVRAM_SET_INT")
@@ -260,7 +272,7 @@ class NVRAM_Hypercall(PyPlugin):
             self.add_nvram(key, vali)
             if self.log:
                 with open(self.write_file, "a") as f:
-                    f.write(f"\n{self.nvram}\n")
+                    f.write(f"key = \"{key}\", val = \"{vali}\"\n")
             if self.control(cpu):
                 self.panda.arch.set_retval(cpu, self.panda.to_unsigned_guest(vali))
     
@@ -314,7 +326,6 @@ class NVRAM_Hypercall(PyPlugin):
     def uninit(self):
         #print(self.nvram)
         pass
-
     def control(self, cpu):
         pid = self.panda.get_current_process(cpu).pid
         if result := self.cached.get(pid, None):
@@ -322,3 +333,4 @@ class NVRAM_Hypercall(PyPlugin):
                 self.panda.arch.set_retval(cpu, CONTROL | 1)
                 return False
         return True
+    
