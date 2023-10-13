@@ -6,6 +6,5 @@ BUILDDIR=`realpath build`
 echo "Built by $USER on $HOSTNAME at `date`" > build/buildinfo.txt
 for TARGET in "${TARGETLIST[@]}"; do
     echo "Building for $TARGET"
-    CC=$TARGET-gcc ARCH=$TARGET make -j`nproc` -C libhypernvram BUILD=$BUILDDIR all
-    CC=$TARGET-gcc ARCH=$TARGET make -j`nproc` -C cli BUILD=$BUILDDIR all
+    CC=$TARGET-gcc ARCH=$TARGET BUILD=$BUILDDIR make -j`nproc` all
 done

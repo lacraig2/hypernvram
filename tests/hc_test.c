@@ -5,7 +5,7 @@
 
 int main(){
     char* hello = "hello world!\n";
-    int out = hc(0x1,&hello,1);
+    int out = hc(0x1,(void**)&hello,1);
     printf("out: %x\n", out);
     return 0;
 }
