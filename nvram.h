@@ -77,5 +77,33 @@ int agApi_fwGetFirstTriggerConf(char *a1);
 // R6200V2, R6250-V1, R6300v2, R6700-V1, R7000-V1 patch infinite loop in httpd
 int agApi_fwGetNextTriggerConf(char *a1);
 #endif
-
+typedef struct cache_node {
+    char *key;
+    char *val;
+    char conf;
+    int vali;
+    struct cache_node* forward;
+    struct cache_node* back;
+} cache_node;
+cache_node* get_cached(char* key, int conf);
+int delete_cached(char* key);
+void insert_cached_str(char* key, char* val, int conf);
+void insert_cached_int(char* key, int val, int conf);
+void control(int val);
+#define MAGIC_VALUE 0x4e564843
+#define NVRAM_CLOSE 0x31838180 
+#define NVRAM_INIT 0x31838181 
+#define NVRAM_CLEAR 0x31838182 
+#define NVRAM_LIST_ADD 0x31838183 
+#define NVRAM_GET_BUF 0x31838184 
+#define NVRAM_GET_INT 0x31838185 
+#define NVRAM_GETALL 0x31838186 
+#define NVRAM_SET 0x31838187 
+#define NVRAM_SET_INT 0x31838188 
+#define NVRAM_UNSET 0x31838189 
+#define NVRAM_COMMIT 0x3183818a
+#define CACHE 0xCA000000  
+#define CONTROL_MASK 0x00FFFFFF
+#define CONTROL 0xCE000000
+#define UNSET_CACHE 0x31838170   
 #endif

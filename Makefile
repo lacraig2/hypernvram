@@ -1,6 +1,6 @@
 ARCH ?= x86_64
 TARGETS = libnvram-$(ARCH).so cli_example-$(ARCH) hc_test-$(ARCH)
-CFLAGS ?=
+CFLAGS ?= -g
 
 .PHONY: all clean
 
