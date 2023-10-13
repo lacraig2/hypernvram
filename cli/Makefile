@@ -1,6 +1,6 @@
-ARCH ?= x86_64
-TARGETS = libnvram-$(ARCH).so 
-#cli_example-$(ARCH) hc_test-$(ARCH)
+ARCH ?= x86_64-linux-gnu
+BUILD?=.
+TARGETS = $(BUILD)/nvram-$(ARCH)
 CFLAGS ?= -g
 
 .PHONY: all clean
@@ -17,14 +17,8 @@ endif
 
 all: $(TARGETS)
 
-libnvram-$(ARCH).so: nvram.c
-	$(CC) $(CFLAGS) -fPIC -shared -nostdlib $< -o $@
-
-# hc_test-$(ARCH): hc_test.c
-	# $(CC) $(CFLAGS) -static $< -o $@
-
-# cli_example-$(ARCH): cli_example.c
-	# $(CC) $(CFLAGS) -L. -lnvram-$(ARCH) $< -o $@
+$(BUILD)/nvram-$(ARCH): cli.c
+	$(CC) $(CFLAGS) -fPIC -static $< -o $@ -L$(BUILD) -lhypernvram-$(ARCH) -I../libhypernvram
 
 clean:
 	rm -f $(TARGETS)
