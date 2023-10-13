@@ -28,3 +28,4 @@ libnvram-$(ARCH).so: nvram.c
 
 clean:
 	rm -f $(TARGETS)
+	
