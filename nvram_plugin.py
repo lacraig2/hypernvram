@@ -220,16 +220,20 @@ class NVRAM_Hypercall(PyPlugin):
         if "ipdb" in key:
             ipdb.set_trace()
         buf = argv[1]
-        if self.log:
-            with open(self.write_file, "a") as f:
-                f.write(f"key = \"{key}\", val = \"{self.panda.read_str(cpu, buf)}\"\n")
+        
         b = self.nvram.get(key, None)
         if b == None:
             if not self.ppp_run_cb("nvram_get", cpu, key, buf, sz, None, None):
                 self.panda.arch.set_retval(cpu, NVRAM_GET_BUF, 'syscall')
+                if self.log:
+                    with open(self.write_file, "a") as f:
+                        f.write(f"No Callback!\n")
             if key not in self.missing:
                 print(f"Key {key} not found")
                 self.missing[key] = self.missing.get(key, 0) + 1
+                if self.log:
+                    with open(self.write_file, "a") as f:
+                        f.write(f"NVRAM_GET_BUF: Key not found!\n")
             return
         if len(b) > sz:
             a = b[:sz-1] + b'\0'
@@ -245,6 +249,9 @@ class NVRAM_Hypercall(PyPlugin):
             except ValueError:
                 print("RETRY NVRAM_GET_BUF")
                 self.panda.arch.set_retval(cpu, RETRY, 'syscall') 
+        if self.log:
+            with open(self.write_file, "a") as f:
+                f.write(f"key = \"{key}\", val = \"{self.panda.read_str(cpu, buf)}\"\n")
         
     def unset(self, cpu, argv):
         try:
