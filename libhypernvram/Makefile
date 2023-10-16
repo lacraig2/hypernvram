@@ -8,11 +8,12 @@ CFLAGS ?= -g
 all: $(TARGETS)
 
 $(BUILD)/libhypernvram-$(ARCH).a: nvram.c
-	$(CC) $(CFLAGS) -fpic -c -Wall nvram.c
+	$(CC) $(CFLAGS) -fpic -c -Wall nvram.c -I../include
 	$(AR) -rc $(BUILD)/libhypernvram-$(ARCH).a nvram.o
+	rm nvram.o
 
 $(BUILD)/libhypernvram-$(ARCH).so: nvram.c
-	$(CC) $(CFLAGS) -fPIC -shared -nostdlib $< -o $@
+	$(CC) $(CFLAGS) -fPIC -shared -nostdlib -I../include $< -o $@
 
 clean:
 	rm -f $(TARGETS)

@@ -8,7 +8,7 @@ CFLAGS ?= -g
 all: $(TARGETS)
 
 $(BUILD)/nvram-$(ARCH): cli.c
-	$(CC) $(CFLAGS) -fPIC -static $< -o $@ -L$(BUILD) -lhypernvram-$(ARCH) -I../libhypernvram
+	$(CC) $(CFLAGS) -fPIC -static $< -o $@ -L$(BUILD) -lhypernvram-$(ARCH) -I../include
 
 clean:
 	rm -f $(TARGETS)

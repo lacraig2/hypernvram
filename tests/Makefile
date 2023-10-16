@@ -8,10 +8,10 @@ CFLAGS ?= -g
 all: $(TARGETS)
 
 $(BUILD)/hc_test-$(ARCH): hc_test.c
-	$(CC) $(CFLAGS) -fPIC -static $< -o $@  -I../libhypernvram
+	$(CC) $(CFLAGS) -fPIC -static $< -o $@  -I../include
 
 $(BUILD)/nvram_test-$(ARCH): nvram_test.c
-	$(CC) $(CFLAGS) -fPIC -static $< -o $@ -L$(BUILD) -lhypernvram-$(ARCH) -I../libhypernvram
+	$(CC) $(CFLAGS) -fPIC -static $< -o $@ -L$(BUILD) -lhypernvram-$(ARCH) -I../include
 
 clean:
 	rm -f $(TARGETS)
