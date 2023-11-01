@@ -1,6 +1,6 @@
 #include <stdint.h>
 #define MAGIC_VALUE 5
-#include "hypercall.h"
+#include "libhc/hypercall.h"
 #include <stdio.h>
 #include <string.h>
 

@@ -17,7 +17,7 @@
 #include "alias.h"
 #include "nvram.h"
 #include "config.h"
-#include "hypercall.h"
+#include "libhc/hypercall.h"
 
 /* Generate variable declarations for external NVRAM data. */
 #define NATIVE(a, b)
